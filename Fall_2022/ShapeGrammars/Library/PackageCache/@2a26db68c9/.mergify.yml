@@ -1,0 +1,16 @@
+pull_request_rules:
+  - name: Automatic merge backports on successful checks
+    conditions:
+      - "base~=backport/.*"
+      - "label=backport"
+      - "check-success=build-test-deploy"
+      - "check-success=Codacy Static Code Analysis"
+    actions:
+      merge:
+        method: merge
+      delete_head_branch:
+      comment:
+        message: |
+            Merging backport automatically as status checks from Codacy & CircleCI passed.
+            
+            Will attempt to remove branch `{{head}}`.

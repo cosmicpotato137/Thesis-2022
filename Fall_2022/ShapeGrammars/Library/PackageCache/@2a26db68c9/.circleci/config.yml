@@ -1,0 +1,432 @@
+version: 2.1
+
+preset-filter-test: &WORKFLOW_BUILD_TEST_FILTER
+  only:
+    - develop
+    - /^hotfix.*/
+    - /^release.*/
+    - /^feature.*/
+
+preset-filter-deploy: &WORKFLOW_BUILD_TEST_DEPLOY_FILTER
+  only:
+    - master
+    - /^backport.*/
+
+preset-filter-check: &WORKFLOW_CHECK_DEPLOY_READY_FILTER
+  only:
+    - /^hotfix.*/
+    - /^release.*/
+    - /^feature.*/
+
+orbs:
+  win: circleci/windows@2.4.0
+
+commands:
+  checkout-and-setup:
+    parameters:
+      setup-variables:
+        type: boolean
+        default: false
+      update-package-json:
+        type: boolean
+        default: false
+    steps:
+      - checkout
+      - run:
+          name: Enable permissions on scripts
+          command: chmod +x $SCRIPTS/**.sh -v
+      - when:
+          condition: <<parameters.setup-variables>>
+          steps:
+            - run:
+                name: Setup Variables
+                command: $SCRIPTS/build_setup_variables.sh json <<parameters.update-package-json>> $REPO_FOLDER/ci/version.json
+      - run:
+          name: Store Unity version to file
+          command: echo "$UNITY_VERSION" > /unity-version.txt
+
+executors:
+  unity-2018-4-14f1: &unity-2018-4-14f1-executor
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-unity-tester:v1-2018.4.14f1
+    environment:
+      UNITY_LICENSE_CONTENT_B64_ENV: UNITY_2018_4_14F1_LICENSE_CONTENT_B64
+      UNITY_VERSION: 2018.4.14f1
+
+  unity-2019-2-11f1:
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-unity-tester:v1-2019.2.11f1
+    environment:
+      UNITY_LICENSE_CONTENT_B64_ENV: UNITY_2019_2_11F1_LICENSE_CONTENT_B64
+      UNITY_VERSION: 2019.2.11f1
+
+  unity-2020-1-0b6:
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-unity-tester:v1-2020.1.0b6-linux-il2cpp
+    environment:
+      UNITY_LICENSE_CONTENT_B64_ENV: UNITY_2020_1_0B6_LICENSE_CONTENT_B64
+      UNITY_VERSION: 2020.1.0b6
+
+jobs:
+  build-package:
+    working_directory: ~/repo
+
+    environment:
+      SCRIPTS: /root/repo/ci/scripts
+      REPO_FOLDER: /root/repo
+      BUILD_SOLUTION: /root/repo/Src/Newtonsoft.Json/Newtonsoft.Json.csproj
+      TEST_SOLUTION: /root/repo/Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj
+      BUILD_DESTINATION_BASE: /root/repo/Src/Newtonsoft.Json-for-Unity/Plugins
+      BUILD_ADDITIONAL_CONSTANTS: SIGNING
+
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-builder:v3
+
+    steps:
+      # Checkout repo -> ~/repo
+      - checkout-and-setup:
+          setup-variables: true
+          update-package-json: true
+
+      - restore_cache:
+          keys:
+            - build-package-nuget
+
+      - run:
+          name: NuGet restore
+          command: |
+            dotnet restore "$BUILD_SOLUTION"
+            dotnet restore "$TEST_SOLUTION" -p:UnityBuild=Tests
+
+      - save_cache:
+          key: build-package-nuget
+          paths:
+            - /root/.nuget/packages
+
+      - run:
+          name: Build Editor
+          command: $SCRIPTS/build.sh Editor
+
+      - run:
+          name: Build AOT
+          command: $SCRIPTS/build.sh AOT
+
+      - run:
+          name: Build Testing library
+          command: |
+            export BUILD_CONFIGURATION=Debug
+            export BUILD_DESTINATION=/workspace/testlib
+            export BUILD_ADDITIONAL_CONSTANTS=
+            $SCRIPTS/build.sh Tests "$BUILD_SOLUTION"
+
+      - run:
+          name: Setup variables for Newtonsoft.Json.Tests
+          command: $SCRIPTS/build_setup_variables.sh xml false $REPO_FOLDER/Src/Newtonsoft.Json/Newtonsoft.Json.csproj
+
+      - run:
+          name: Build Newtonsoft.Json.Tests for Unity
+          command: |
+            export BUILD_SOLUTION="$TEST_SOLUTION"
+            export BUILD_CONFIGURATION=Debug
+            export BUILD_DESTINATION=/root/tmp/Newtonsoft.Json.Tests/bin
+            export BUILD_ADDITIONAL_CONSTANTS=UNITY_EDITOR_LINUX
+            $SCRIPTS/build.sh Tests "$BUILD_SOLUTION"
+
+      - run:
+          name: Move resulting package into workspace
+          command: |
+            mkdir -pv /workspace/package
+            cp -rv Src/Newtonsoft.Json-for-Unity/. /workspace/package/
+            cp -vf CHANGELOG.md /workspace/package/
+
+            mkdir -pv /workspace/tests
+            export BUILD_DESTINATION=/root/tmp/Newtonsoft.Json.Tests/bin
+            cp -rvt /workspace/tests/ \
+              $BUILD_DESTINATION/Newtonsoft.Json.Tests.dll \
+              $BUILD_DESTINATION/Newtonsoft.Json.Tests.pdb \
+              $BUILD_DESTINATION/System.Web.Polyfill.dll \
+              $BUILD_DESTINATION/System.Web.Polyfill.pdb
+
+      - run:
+          name: Fix meta files
+          command: |
+            $SCRIPTS/generate_metafiles.sh /workspace/package
+
+      - persist_to_workspace:
+          root: /workspace
+          paths:
+            - testlib
+            - package
+            - tests
+
+  test-windows:
+    executor: win/default
+
+    steps:
+      - run:
+          name: Dotnet installs
+          command: dotnet --info
+
+      - checkout
+
+      - restore_cache:
+          keys:
+            - test-windows-nuget
+
+      - run:
+          name: Install tools -> Temp/profile.ps1
+          command: ci/scripts/install_tools.ps1
+
+      - run:
+          name: NuGet restore
+          command: |
+            .'Temp/profile.ps1'
+            &$nuget restore Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj
+
+      - run:
+          name: Run Build step
+          command: |
+            .'Temp/profile.ps1'
+            &$msbuild -t:build -restore -p:Configuration=Debug -p:LibraryFrameworks=net46 -p:TestFrameworks=net46 Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj
+
+      - run:
+          name: Run tests
+          command: |
+            .'Temp/profile.ps1'
+            New-Item Tests/NUnit -ItemType Directory -ErrorAction SilentlyContinue
+            &$nunit3console Src/Newtonsoft.Json.Tests/bin/Debug/net46/Newtonsoft.Json.Tests.dll --framework=net-4.0 --result=Tests/NUnit/net46.xml
+
+      - run:
+          name: Convert NUnit to JUnit xml
+          when: always
+          command: ci/scripts/nunit2junit.ps1 Tests/NUnit/ Tests/JUnit/
+
+      - store_test_results:
+          name: Store test results -> ~/Tests/JUnit
+          path: Tests/JUnit
+
+      - save_cache:
+          key: test-windows-nuget
+          paths:
+            - C:\Users\circleci\.nuget\packages
+
+  test:
+    parameters:
+      unity-version:
+        type: executor
+
+    executor: <<parameters.unity-version>>
+    working_directory: ~/repo
+
+    environment:
+      SCRIPTS: /root/repo/ci/scripts
+      ASSETS_FOLDER: /root/repo/Src/Newtonsoft.Json-for-Unity.Tests/Assets
+      TEST_PROJECT: /root/repo/Src/Newtonsoft.Json-for-Unity.Tests
+      PLATFORMS: playmode
+
+    steps:
+      # Checkout repo -> ~/repo
+      - checkout-and-setup
+
+      - restore_cache:
+          keys:
+            - test-unity-upm-manifest-{{ checksum "/root/repo/Src/Newtonsoft.Json-for-Unity.Tests/Packages/manifest.json" }}
+            - test-unity-upm-manifest
+
+      - restore_cache:
+          keys:
+            - test-unity-upm-global-{{ checksum "/unity-version.txt" }}
+            - test-unity-upm-global
+
+      - run:
+          name: Setup Unity license
+          command: |
+            UNITY_LICENSE_CONTENT_B64="${!UNITY_LICENSE_CONTENT_B64_ENV}" $SCRIPTS/unity_login.sh
+
+      - attach_workspace:
+          at: /workspace
+
+      - run:
+          name: Copy dll's into Unity testing project
+          command: |
+            cp -vur /workspace/tests/. $ASSETS_FOLDER/Plugins/Newtonsoft.Json.Tests/
+            cp -vfr /workspace/testlib/. $ASSETS_FOLDER/Plugins/Newtonsoft.Json/
+
+      - when:
+          condition:
+            equal: [ *unity-2018-4-14f1-executor, <<parameters.unity-version>> ]
+          steps:
+            - run:
+                name: Downgrade Unity project to 2018.x
+                command: |
+                  echo "Moving $TEST_PROJECT/Packages/manifest.json file"
+                  mv -v "$TEST_PROJECT/Packages/manifest.json" "$TEST_PROJECT/Packages/.manifest.json.old"
+                  echo
+                  find "$ASSETS_FOLDER" -name '.*.asmdef.old' -exec rm -v {} +
+                  echo
+                  find "$ASSETS_FOLDER" -name '*.asmdef' -exec $SCRIPTS/unity_downgrade_asmdef.sh --backup "{}" \;
+
+      - run:
+          name: Run tests
+          command: $SCRIPTS/unity_test.sh $TEST_PROJECT ~/tests/nunit
+
+      - run:
+          name: Convert NUnit to JUnit xml
+          when: always
+          command: $SCRIPTS/nunit2junit.sh ~/tests/nunit ~/tests/junit/
+
+      - store_test_results:
+          name: Store test results -> ~/tests/junit
+          path: ~/tests/junit
+
+      - save_cache:
+          key: test-unity-upm-manifest-{{ checksum "/root/repo/Src/Newtonsoft.Json-for-Unity.Tests/Packages/manifest.json" }}
+          paths:
+            - /root/repo/Src/Newtonsoft.Json-for-Unity.Tests/Library/PackageCache
+
+      - save_cache:
+          key: test-unity-upm-global-{{ checksum "/unity-version.txt" }}
+          paths:
+            - /root/.config/unity3d/cache
+
+  deploy-cloudsmith:
+    working_directory: /root/repo
+
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-deploy-npm:v3
+
+    environment:
+      SCRIPTS: /root/repo/ci/scripts
+      REPO_FOLDER: /root/repo
+      NPM_REGISTRY: https://npm.cloudsmith.io/jillejr/newtonsoft-json-for-unity/
+
+    steps:
+      - checkout-and-setup:
+          setup-variables: true
+
+      - attach_workspace:
+          at: /workspace
+
+      - run:
+          name: NPM Login
+          command: |
+            echo "//npm.cloudsmith.io/jillejr/newtonsoft-json-for-unity/:_authToken=$NPM_AUTH_TOKEN" >> ~/.npmrc
+            echo "registry=$NPM_REGISTRY" >> ~/.npmrc
+            echo "always-auth=true" >> ~/.npmrc
+
+      - run:
+          name: Deploy
+          command: |
+            if [ -z "$(npm view jillejr.newtonsoft.json-for-unity@$VERSION versions)" ]
+            then
+              cd /workspace/package
+              if [ "${VERSION_AUTO_DEPLOY_LIVE_RUN:-}" == "true" ]
+              then
+                npm publish
+              else
+                echo "RUNNING NPM PUBLISH DRY-RUN"
+                npm publish --dry-run
+                echo "RUNNING NPM PUBLISH DRY-RUN"
+            fi
+            else
+              echo "Package version $VERSION_UPM already existed. Skipping the publish"
+            fi
+
+  deploy-github:
+    working_directory: /root/repo
+
+    environment:
+      SCRIPTS: /root/repo/ci/scripts
+      REPO_FOLDER: /root/repo
+
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-deploy-github:v6
+
+    steps:
+      - checkout-and-setup:
+          setup-variables: true
+
+      - attach_workspace:
+          at: /workspace
+
+      - add_ssh_keys:
+          fingerprints:
+            - "82:cf:73:91:b8:06:21:84:9e:79:98:57:11:03:5f:db"
+
+      - run:
+          name: Git Login
+          command: $SCRIPTS/git_login.sh
+
+      - run:
+          name: Deploy
+          command: $SCRIPTS/deploy_git.sh /workspace/package
+
+  check-deploy-ready:
+    working_directory: /root/repo
+
+    docker:
+      - image: applejag/newtonsoft.json-for-unity.package-deploy-npm:v3
+
+    environment:
+      SCRIPTS: /root/repo/ci/scripts
+      NPM_REGISTRY: https://npm.cloudsmith.io/jillejr/newtonsoft-json-for-unity/
+
+    steps:
+      - checkout-and-setup:
+          setup-variables: true
+
+      - attach_workspace:
+          at: /workspace
+
+      - run:
+          name: Check if release is ready for deploy
+          command: $SCRIPTS/check_deploy_ready.sh
+
+workflows:
+  version: 2
+  build-test:
+    jobs:
+      - build-package:
+          filters:
+            branches:
+              <<: *WORKFLOW_BUILD_TEST_FILTER
+      - test-windows:
+          requires:
+            - build-package
+      - test:
+          matrix:
+            parameters:
+              unity-version: [ unity-2018-4-14f1, unity-2019-2-11f1, unity-2020-1-0b6 ]
+          requires:
+            - build-package
+  check-deploy-ready:
+    jobs:
+      - check-deploy-ready:
+          filters:
+            branches:
+              <<: *WORKFLOW_CHECK_DEPLOY_READY_FILTER
+  build-test-deploy:
+    jobs:
+      - build-package:
+          filters:
+            branches:
+              <<: *WORKFLOW_BUILD_TEST_DEPLOY_FILTER
+      - test-windows:
+          requires:
+            - build-package
+      - test:
+          matrix:
+            parameters:
+              unity-version: [ unity-2018-4-14f1, unity-2019-2-11f1, unity-2020-1-0b6 ]
+          requires:
+            - build-package
+      - check-deploy-ready:
+          requires:
+            - test-windows
+            - test
+      - deploy-cloudsmith:
+          requires:
+            - check-deploy-ready
+      - deploy-github:
+          requires:
+            - check-deploy-ready
