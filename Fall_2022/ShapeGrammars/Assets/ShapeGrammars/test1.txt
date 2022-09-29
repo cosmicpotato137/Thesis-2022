@@ -1,0 +1,9 @@
+start: T(1, 1, 1) Push() R(45, 0, 0) edge start Pop() 
+                  Push() R(-45, 0, 0) edge start Pop() 
+                  Push() R(135, 0, 0) edge start Pop() 
+                  Push() R(-135, 0, 0) edge start Pop() 
+                  start %%
+edge: Push() SS(.5, 2, .5) PlaceShape(Box) Pop() %%
+
+
+end: T(1, 2, 3) PlaceShape(Box) %%
