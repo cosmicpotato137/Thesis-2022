@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\NerdThings\thesis\TurtleGrammars-png\build\CMakeFiles\0e1d2935c651fab31b172fa6b4198c5d\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{2715B15C-1D2D-3B6B-A949-A8000489FE58}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

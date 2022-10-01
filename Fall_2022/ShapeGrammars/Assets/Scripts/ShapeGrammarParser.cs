@@ -2,223 +2,16 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-
-
-//static void Main(string[] args)
-//{
-//    var parser = CompileParser();
-
-//    Console.Write("Write math expression: ");
-//    string expression = Console.ReadLine();
-
-//    var result = parser.Parse<double>(expression);
-
-//    if (result.Success)
-//    {
-//        Console.WriteLine($"Result: {result.Value}");
-//    }
-//    else
-//    {
-//        Console.WriteLine("Some errors have been detected:");
-//        foreach (var error in result.Errors)
-//        {
-//            Console.WriteLine(error.Description);
-//        }
-//    }
-//}
-
-// 
-// Grammar rule classes
-// 
-
-public class SGRule 
-{
-    public string token;
-
-    public SGRule(string token)
-    {
-        this.token = token;
-    }
-
-    public SGRule(SGRule other)
-    {
-        this.token = other.token;
-    }
-
-    public virtual SGRule Copy()
-    {
-        throw new NotImplementedException();
-    }
-
-    public virtual void Call()
-    {
-        throw new NotImplementedException();
-    }
-}
-
-public class SGProducer : SGRule
-{
-    public List<SGRule> rules;
-    public Action<SGRule[]> callback;
-
-    public SGProducer(string token, Action<SGRule[]> callback) : base(token)
-    {
-        this.callback = callback;
-        rules = new List<SGRule>();
-    }
-
-    public SGProducer(SGProducer other) : base(other)
-    {
-        this.callback = other.callback;
-        this.rules = other.rules;
-    }
-
-    public override SGRule Copy()
-    {
-        return new SGProducer(this.token, this.callback);
-    }
-
-    public override void Call()
-    {
-        callback(rules.ToArray());
-    }
-}
-
-public class SGGeneratorBase : SGRule
-{
-    public dynamic[] parameters;
-
-    public SGGeneratorBase(string token) : base(token)
-    {
-    }
-
-    public SGGeneratorBase(SGGeneratorBase other) : base(other)
-    {
-        this.parameters = other.parameters;
-    }
-}
-
-public class SGGenerator : SGGeneratorBase
-{
-    private Action callback;
-
-    public SGGenerator(string token, Action callback) : base(token)
-    {
-        this.callback = callback;
-        parameters = new dynamic[0];
-    }
-
-    public SGGenerator(SGGenerator other) : base(other)
-    {
-        this.callback = other.callback;
-    }
-    public override SGRule Copy()
-    {
-        return new SGGenerator(token, callback);
-    }
-
-
-    public override void Call()
-    {
-        callback();
-    }
-}
-
-public class SGGenerator<T1> : SGGeneratorBase
-{
-    private Action<T1> callback;
-
-    public SGGenerator(string token, Action<T1> callback) : base(token)
-    {
-        this.callback = callback;
-        parameters = new dynamic[1];
-    }
-
-    public SGGenerator(SGGenerator<T1> other) : base(other)
-    {
-        this.callback = other.callback;
-    }
-
-    public override SGRule Copy()
-    {
-        return new SGGenerator<T1>(token, callback);
-    }
-
-    public override void Call()
-    {
-        callback((T1)parameters[0]);
-    }
-}
-
-public class SGGenerator<T1, T2> : SGGeneratorBase
-{
-    private Action<T1, T2> callback;
-
-    public SGGenerator(string token, Action<T1, T2> callback) : base(token)
-    {
-        this.callback = callback;
-        parameters = new dynamic[2];
-    }
-
-    public SGGenerator(SGGenerator<T1, T2> other) : base(other)
-    {
-        this.callback = other.callback;
-    }
-
-    public override SGRule Copy()
-    {
-        return new SGGenerator<T1, T2>(token, callback);
-    }
-
-    public override void Call()
-    {
-        callback((T1)parameters[0], (T2)parameters[1]);
-    }
-}
-
-public class SGGenerator<T1, T2, T3> : SGGeneratorBase
-{
-    private Action<T1, T2, T3> callback;
-
-    public SGGenerator(string token, Action<T1, T2, T3> callback) : base(token)
-    {
-        this.callback = callback;
-        parameters = new dynamic[3];
-    }
-
-    public SGGenerator(SGGenerator<T1, T2, T3> other) : base(other)
-    {
-        this.callback = other.callback;
-    }
-
-    public override SGRule Copy()
-    {
-        return new SGGenerator<T1, T2, T3>(token, callback);
-    }
-
-    public override void Call()
-    {
-        callback((T1)parameters[0], (T2)parameters[1], (T3)parameters[2]);
-    }
-}
-
-public class SGLinkedList<T>
-{
-    public T Value;
-    public SGLinkedList<T> Prev;
-    public SGLinkedList<T> Next;
-
-    public SGLinkedList(T value)
-    {
-        Value = value;
-    }
-}
+using cosmicpotato.Datastructures;
 
 public class ShapeGrammarParser
 {
-    public Dictionary<string, SGGeneratorBase> generators { get; private set; }
-    public Dictionary<string, SGProducer> producers { get; private set; }
-    public LinkedList<SGRule> opQueue;
+    private Dictionary<string, SGGeneratorBase>     generators;
+    private Dictionary<string, SGProducer>          producers;
+    private Dictionary<string, SGVar>      variables;
+    private Dictionary<string, SGVar>      prepVars;
+
+    private SGRule opTree;
 
     private Parser<ELang> parser;
 
@@ -226,14 +19,31 @@ public class ShapeGrammarParser
     {
         generators = new Dictionary<string, SGGeneratorBase>();
         producers = new Dictionary<string, SGProducer>();
-        opQueue = new LinkedList<SGRule>();
+        variables = new Dictionary<string, SGVar>();
+        prepVars = new Dictionary<string, SGVar>();
+
+        SGVar depth = new SGVar("maxDepth", -1);
+        prepVars.Add(depth.token, depth);
+        SGVar oper = new SGVar("maxOper", -1);
+        prepVars.Add(oper.token, oper);
     }
 
     public ParseResult<string> Parse(TextAsset text)
     {
-        opQueue.Clear();
         producers.Clear();
+        variables.Clear();
         return parser.Parse<string>(text.text);
+    }
+
+    public void RunShapeGrammar(int maxDepth, int maxOper = 100000)
+    {
+        if (prepVars.ContainsKey("maxDepth") && prepVars["maxDepth"].Get<int>() > 0)
+            maxDepth = prepVars["maxDepth"].Get<int>();
+        if (prepVars.ContainsKey("maxOper") && prepVars["maxOper"].Get<int>() > 0)
+            maxOper = prepVars["maxOper"].Get<int>();
+
+        SGRule.maxOper = maxOper;
+        opTree.Call(maxDepth);
     }
 
     public void AddGenerator(SGGeneratorBase rule)
@@ -241,50 +51,45 @@ public class ShapeGrammarParser
         generators.Add(rule.token, rule);
     }
 
-    public void AddProducer(string token)
+    public void AddProducer(SGProducer producer)
     {
-        var p = new SGProducer(token, AddRules);
-        producers.Add(token, p);
+        producers.Add(producer.token, producer);
     }
 
-    public void AddProducer(SGProducer p)
+    public bool NameExsists(string token)
     {
-        producers.Add(p.token, p);
-    }
-
-    public void AddRules(SGRule[] rules)
-    {
-        for (int i = rules.Length-1; i >= 0; i--)
-            opQueue.AddFirst(rules[i]);
-    }
-
-    public void PushRule(SGRule rule)
-    {
-        opQueue.AddLast(rule);
+        return producers.ContainsKey(token) || generators.ContainsKey(token) || 
+            variables.ContainsKey(token) || prepVars.ContainsKey(token);
     }
 
     private enum ELang
     {
-        START, Rule, RuleList, ExpList, Exp, ProdRule, ProdRuleList, //E, M, T,
-
-        //  Pow, Mul, Sub, Plus, Div,
-        Ignore, LParen, RParen, Number, Name, RArrow, Colon, Comma, Break
+        // production rules
+        START, Rule, RuleList, ExpList, Exp, ProdRule, ProdRuleList, 
+        Var, VarList,
+        // symbols
+        Ignore, LParen, RParen, Number, Name, RArrow, Colon, Comma, Break,
+        Pound, Equals, LBrac, RBrac, String
     }
 
     public void CompileParser()
     {
-        SGProducer p = new SGProducer("hi", AddRules);
         var tokens = new LexerDefinition<ELang>(new Dictionary<ELang, TokenRegex>
         {
-            [ELang.Ignore]  = "[\\s\\n]+",
-            [ELang.Name]    = @"[A-Za-z_][a-zA-Z0-9_]*",
-            [ELang.LParen]  = "\\(",
-            [ELang.RParen]  = "\\)",
-            [ELang.Number]  = "[-+]?\\d*(\\.\\d+)?",
-            [ELang.RArrow]  = @"->",
-            [ELang.Colon]   = @":",
-            [ELang.Comma]   = @",",
-            [ELang.Break]   = @"%%"
+            [ELang.Ignore] = "[\\s\\n]+",
+            [ELang.Name] = @"[A-Za-z_][a-zA-Z0-9_]*",
+            [ELang.String] = "\"[A-Za-z_][a-zA-Z0-9_]*\"",// (?:[^\"\\]|\\.)*
+            [ELang.LParen] = "\\(",
+            [ELang.RParen] = "\\)",
+            [ELang.Number] = "[-+]?\\d*(\\.\\d+)?",
+            [ELang.RArrow] = @"->",
+            [ELang.Colon] = @":",
+            [ELang.Comma] = @",",
+            [ELang.Break] = @"%%",
+            [ELang.Pound] = "\\#",
+            [ELang.Equals] = @"=",
+            [ELang.LBrac] = "{",
+            [ELang.RBrac] = "}"
         });
 
 
@@ -292,44 +97,30 @@ public class ShapeGrammarParser
         {
             [ELang.START] = new Token[][]
             {
-                new Token[] { ELang.ProdRuleList, new Op(o => o[0] = "Production Rule List") },
-                new Token[] { ELang.RuleList, 
-                    new Op(o => 
-                    {
-                        SGLinkedList<SGGeneratorBase> genNode = o[0];
-                        while (genNode != null)
-                        {
-                            opQueue.AddLast(genNode.Value);
-                            genNode = genNode.Next;
-                        }
-                        o[0] = "Generator List";
-                    })
-                }
+                new Token[] { ELang.ProdRuleList, new Op(o => o[0] = "Shape Grammar") },
+                new Token[] { ELang.VarList, ELang.Break, ELang.ProdRuleList, new Op(o => o[0] = "Shape Grammar")}
             },
+            // list of production rules
             [ELang.ProdRuleList] = new Token[][]
             {
-                new Token[] { ELang.ProdRule, ELang.Break, 
-                    new Op(o =>
-                    {
-                        foreach (SGRule r in o[0].rules)
-                            opQueue.AddLast(r);
-                    })
-                },
-                new Token[] { ELang.ProdRuleList, ELang.ProdRule, ELang.Break }
+                new Token[] { ELang.ProdRule, new Op(o => opTree = o[0]) },
+                new Token[] { ELang.ProdRuleList, ELang.ProdRule }
             },
             [ELang.ProdRule] = new Token[][]
             {
-                new Token[] { ELang.Name, ELang.Colon, ELang.RuleList,
+                new Token[] { ELang.Name, ELang.Colon, ELang.LBrac, ELang.RuleList, ELang.RBrac,
                     new Op(o =>
                     {
-                        if (producers.ContainsKey(o[0]))
-                            throw new ArgumentException("Cannot have duplicate producer labels");
+                        if (NameExsists(o[0]))
+                            throw new ArgumentException($"Name already exists: {o[0]}");
 
-                        SGProducer p = new SGProducer(o[0], (Action<SGRule[]>)AddRules);
+                        // make a new producer and add it's children
+                        var p = new SGProducer(o[0]);
                         AddProducer(p);
-                        SGLinkedList<SGGeneratorBase> genNode = o[2];
+                        Node<SGRule> genNode = o[3];
                         while (genNode != null)
                         {
+                            genNode.Value.parent = p;
                             p.rules.Add(genNode.Value);
                             genNode = genNode.Next;
                         }
@@ -337,30 +128,37 @@ public class ShapeGrammarParser
                     })
                 }
             },
+            // list of generator rules
             [ELang.RuleList] = new Token[][]
             {
-                new Token[] { ELang.Rule, new Op(o => o[0] = new SGLinkedList<SGGeneratorBase>(o[0])) },
+                new Token[] { ELang.Rule, new Op(o => o[0] = new Node<SGRule>(o[0])) },
                 new Token[] { ELang.Rule, ELang.RuleList,
                     new Op(o => 
                     {
-                        o[0] = new SGLinkedList<SGGeneratorBase>(o[0]);
+                        o[0] = new Node<SGRule>(o[0]);
                         o[0].Next = o[1];
                     }) 
                 }
             },
             [ELang.Rule] = new Token[][]
             {
+                // SGProdGen: a placeholder for SGProducer, handled at 'runtime'
                 new Token[] { ELang.Name,
                     new Op(o =>
                     {
-                        Action<string> a = (token) => {
-                            if (producers.ContainsKey(token))
-                                producers[token].Call();
+                        // find the producer corresponding to SGProdGen
+                        string name = o[0];
+                        Func<SGProducer> findProd = () =>
+                        {
+                            if (producers.ContainsKey(name)) 
+                                return producers[name];
+                            else
+                                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
                         };
-                        o[0] = new SGGenerator<string>(o[0], a);
-                        o[0].parameters = new dynamic[] { o[0].token };
+                        o[0] = new SGProdGen(name, findProd);
                     })
                 },
+                // function with no parameters
                 new Token[] { ELang.Name, ELang.LParen, ELang.RParen,
                     new Op(o =>
                     {
@@ -370,12 +168,14 @@ public class ShapeGrammarParser
                             throw new MethodAccessException($"Function: {o[0]} does not exist");
                     })
                 },
+                // function with parameters
                 new Token[] { ELang.Name, ELang.LParen, ELang.ExpList, ELang.RParen,
                     new Op(o =>
                     {
                         if (generators.ContainsKey(o[0]))
                         {
-                            SGLinkedList<dynamic> expList = o[2];
+                            // add all parameters to the generator
+                            Node<dynamic> expList = o[2];
                             int i = 0;
                             var g = generators[o[0]].Copy();
                             while (expList != null && i < g.parameters.Length)
@@ -384,6 +184,7 @@ public class ShapeGrammarParser
                                 expList = expList.Next;
                                 i++;
                             }
+                            // make sure the function has the right number of params
                             if (expList != null)
                                 throw new ArgumentException($"Too many arguments in function: {o[0]}");
                             else
@@ -396,25 +197,66 @@ public class ShapeGrammarParser
                     })
                 },
             },
+            // list of parameters
             [ELang.ExpList] = new Token[][]
             {
-                new Token[] { ELang.Exp, new Op(o => { 
-                    o[0] = new SGLinkedList<dynamic>(o[0]); 
-                }) },
+                new Token[] { ELang.Exp, new Op(o => o[0] = new Node<dynamic>(o[0])) },
                 new Token[] { ELang.Exp, ELang.Comma, ELang.ExpList,
                     new Op(o => 
                     {
-                        o[0] = new SGLinkedList<dynamic>(o[0]);
+                        o[0] = new Node<dynamic>(o[0]);
                         o[0].Next = o[2];
                     })
                 }
             },
+            // single argument
             [ELang.Exp] = new Token[][]
             {
-                new Token[] { ELang.Number, new Op(o => {
-                    o[0] = Convert.ToDouble(o[0]); 
-                }) },
-                new Token[] { ELang.Name, new Op(o => o[0] = Convert.ToString(o[0])) }
+                new Token[] { ELang.Number, new Op(o => o[0] = Convert.ToDouble(o[0])) },
+                new Token[] { ELang.String, 
+                    new Op(o => 
+                    { 
+                        string s = Convert.ToString(o[0]);
+                        o[0] = s.Substring(1, s.Length - 2);
+                    }) 
+                },
+                new Token[] { ELang.Name, 
+                    new Op(o => 
+                    {
+                        if (variables.ContainsKey(o[0]))
+                            o[0] = variables[o[0]].Get<dynamic>();
+                    
+                    }) 
+                }
+            },
+
+            [ELang.VarList] = new Token[][]
+            {
+                new Token[] { ELang.Var },
+                new Token[] { ELang.VarList, ELang.Var }
+            },
+            [ELang.Var] = new Token[][]
+            {
+                new Token[] { ELang.Pound, "\\s*var\\s+", ELang.Name, ELang.Exp,
+                    new Op(o =>
+                    {
+                        if (NameExsists(o[2]))
+                        {
+                            throw new Exception($"Name already defined: {o[2]}");
+                        }
+                        var v = new SGVar(o[2], o[3]);
+                        variables.Add(v.token, v);
+                    })
+                },
+                new Token[] { ELang.Pound, "\\s*define\\s+", ELang.Name, ELang.Exp,
+                    new Op(o =>
+                    {
+                        if (prepVars.ContainsKey(o[2]))
+                            prepVars[o[2]].Set(o[3]);
+                        else
+                            Debug.LogWarning($"Preprocessing var not found: {o[2]}");
+                    })
+                }
             }
         });
 

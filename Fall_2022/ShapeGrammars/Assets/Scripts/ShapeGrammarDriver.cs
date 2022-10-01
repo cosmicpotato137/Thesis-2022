@@ -31,7 +31,7 @@ public class ShapeGrammarDriver : MonoBehaviour
         shapeDict = new Dictionary<string, Shape>();
         scopeStack = new LinkedList<Matrix4x4>();
         objects = new LinkedList<GameObject>();
-
+         
         // function definitions for the parser
         parser = new ShapeGrammarParser();
         parser.CompileParser();
@@ -63,7 +63,7 @@ public class ShapeGrammarDriver : MonoBehaviour
     {
         if (!shapeDict.ContainsKey(str))
         {
-            Debug.LogError("Shape not found");
+            Debug.LogError($"Shape not found: {str}");
             return;
         }    
 
@@ -90,9 +90,7 @@ public class ShapeGrammarDriver : MonoBehaviour
         SetScope(Matrix4x4.TRS(transform.position, transform.rotation, transform.localScale));
 
         var res = parser.Parse(textFile);
-        if (res.Success)
-            Debug.Log("Grammar compiled successfully.");
-        else
+        if (!res.Success)
         {
             Debug.Log("Grammar compilation failure.");
             foreach (var e in res.Errors)
@@ -101,23 +99,7 @@ public class ShapeGrammarDriver : MonoBehaviour
             }
         }
 
-        int i = 0;
-        int max = 100;
-        SGRule r;
-        while (i < max && parser.opQueue.Count > 0)
-        {
-            r = parser.opQueue.First.Value;
-            parser.opQueue.RemoveFirst();
-            i++;
-            r.Call();
-        }
-
-        //parser.opQueue.First.Value.Call();
-        //parser.opQueue.RemoveFirst();
-        //foreach (SGRule rule in parser.opQueue)
-        //{
-        //    rule.Call();
-        //}
+        parser.RunShapeGrammar(9, 1000000);
 
         // test 1
         //Save();
@@ -178,6 +160,11 @@ public class ShapeGrammarDriver : MonoBehaviour
 
     public void LoadTransform()
     {
+        if (scopeStack.Last == null)
+        {
+            Debug.LogWarning("Trying to pop from empty stack");
+            return;
+        }
         scope = scopeStack.Last.Value;
         scopeStack.RemoveLast();
     }

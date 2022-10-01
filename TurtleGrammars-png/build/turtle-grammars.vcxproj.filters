@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\NerdThings\thesis\TurtleGrammars-png\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\NerdThings\thesis\TurtleGrammars-png\src\ppm_image.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\NerdThings\thesis\TurtleGrammars-png\src\turtle_grammar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\NerdThings\thesis\TurtleGrammars-png\src\ppm_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\NerdThings\thesis\TurtleGrammars-png\src\turtle_grammar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\NerdThings\thesis\TurtleGrammars-png\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{83E4674B-12C8-3351-8104-DB26B6C28489}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{65A27738-079F-3D7F-BE93-BA39D1939A0F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

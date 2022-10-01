@@ -1,0 +1,3 @@
+C:/NerdThings/thesis/TurtleGrammars-png/build/CMakeFiles/turtle-grammars.dir
+C:/NerdThings/thesis/TurtleGrammars-png/build/CMakeFiles/ALL_BUILD.dir
+C:/NerdThings/thesis/TurtleGrammars-png/build/CMakeFiles/ZERO_CHECK.dir

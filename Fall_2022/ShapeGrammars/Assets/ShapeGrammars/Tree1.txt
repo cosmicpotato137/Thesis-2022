@@ -1,0 +1,16 @@
+﻿#define maxDepth 5
+#var Box "Box"
+#var rot 22.5
+
+%%
+
+start: { x }
+
+x: { F RL Push() Push() x Pop() RR x Pop() RR F Push() RR F x Pop() RL x }
+
+F: { edge edge }
+
+edge: { T(0, .5, 0) Push() SS(.2, 1, .2) PlaceShape(Box) Pop() T(0, .5, 0) F }
+
+RL: { R(-22.5, 0, 0) }
+RR: { R(22.5, 0, 0) }
