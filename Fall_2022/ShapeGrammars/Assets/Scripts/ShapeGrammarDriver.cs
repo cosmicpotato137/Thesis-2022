@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Parabox.CSG;
 
 public enum Primitive
 {
@@ -15,14 +16,14 @@ public class ShapeGrammarDriver : MonoBehaviour
     public List<Shape> shapes;
     public List<SGGeneratorBase> grammarRules;
 
-    [Header("Paerser")]
+    [Header("Parser")]
     public TextAsset textFile;
 
     protected Dictionary<string, Shape> shapeDict;
     protected LinkedList<GameObject> objects;
 
     protected LinkedList<Matrix4x4> scopeStack;
-    protected Matrix4x4 scope;
+    //protected Matrix4x4 scope;
 
     protected ShapeGrammarParser parser;
 
@@ -36,30 +37,36 @@ public class ShapeGrammarDriver : MonoBehaviour
         parser = new ShapeGrammarParser();
         parser.CompileParser();
 
-        Action<string> p = (name) => PlaceShape(name);
+        Action<SGProducer, string> p = (parent, name) =>
+        {
+            PlaceShape(name, parent.scope);
+        };
         var a = new SGGenerator<string>("PlaceShape", p);
         parser.AddGenerator(a);
 
-        Action<float, float, float> f = (x, y, z) => Translate(new Vector3(x, y, z));
-        var b = new SGGenerator<float, float, float>("T", f);
-        parser.AddGenerator(b);
+        Action<SGProducer, float, float, float> t = 
+            (parent, x, y, z) => parent.scope = parent.scope.Translate(new Vector3(x, y, z));
+        parser.AddGenerator(new SGGenerator<float, float, float>("T", t));
 
-        Action<float, float, float> r = (x, y, z) => Rotate(new Vector3(x, y, z));
+        Action<SGProducer, float, float, float> r = 
+            (parent, x, y, z) => parent.scope = parent.scope.Rotate(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("R", r));
 
-        Action<float, float, float> s = (x, y, z) => Scale(new Vector3(x, y, z));
+        Action<SGProducer, float, float, float> s = 
+            (parent, x, y, z) => parent.scope = parent.scope.Scale(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("S", s));
 
-        Action<float, float, float> ss = (x, y, z) => SetScale(new Vector3(x, y, z));
+        Action<SGProducer, float, float, float> ss = 
+            (parent, x, y, z) => parent.scope = parent.scope.SetScale(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("SS", s));
 
-        Action push = () => SaveTransform();
+        Action<SGProducer> push = (parent) => parent.SaveTransform();
         parser.AddGenerator(new SGGenerator("Push", push));
-        Action pop = () => LoadTransform();
+        Action<SGProducer> pop = (parent) => parent.LoadTransform();
         parser.AddGenerator(new SGGenerator("Pop", pop));
     }
 
-    public void PlaceShape(string str)
+    public void PlaceShape(string str, Matrix4x4 scope)
     {
         if (!shapeDict.ContainsKey(str))
         {
@@ -87,7 +94,6 @@ public class ShapeGrammarDriver : MonoBehaviour
                 shapeDict.Add(s.name, s);
         }
 
-        SetScope(Matrix4x4.TRS(transform.position, transform.rotation, transform.localScale));
 
         var res = parser.Parse(textFile);
         if (!res.Success)
@@ -118,54 +124,4 @@ public class ShapeGrammarDriver : MonoBehaviour
         }
     }
 
-    public Matrix4x4 GetScope()
-    {
-        return scope;
-    }
-
-    public void SetScope(Matrix4x4 scope)
-    {
-        this.scope = scope;
-    }
-
-    public void Translate(Vector3 translation)
-    {
-        scope *= Matrix4x4.TRS(translation, Quaternion.identity, Vector3.one);
-    }
-
-    public void Rotate(Vector3 eulerRot)
-    {
-        scope *= Matrix4x4.TRS(Vector3.zero, Quaternion.Euler(eulerRot), Vector3.one);
-    }
-
-    public void Rotate(Quaternion quat)
-    {
-        scope *= Matrix4x4.TRS(Vector3.zero, quat, Vector3.one);
-    }
-
-    public void Scale(Vector3 scale)
-    {
-        scope *= Matrix4x4.TRS(Vector3.zero, Quaternion.identity, scale);
-    }
-
-    public void SetScale(Vector3 scale)
-    {
-        scope = Matrix4x4.TRS(scope.GetPosition(), scope.GetRotation(), scale);
-    }
-
-    public void SaveTransform()
-    {
-        scopeStack.AddLast(scope);
-    }
-
-    public void LoadTransform()
-    {
-        if (scopeStack.Last == null)
-        {
-            Debug.LogWarning("Trying to pop from empty stack");
-            return;
-        }
-        scope = scopeStack.Last.Value;
-        scopeStack.RemoveLast();
-    }
 }

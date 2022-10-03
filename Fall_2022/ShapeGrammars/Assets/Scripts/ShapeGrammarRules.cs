@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 // Grammar rule classes
 
@@ -45,7 +46,7 @@ public class SGVar : SGObj
 
 public class SGRule : SGObj
 {
-    public SGRule parent; // parent rule in production
+    public SGProducer parent; // parent rule in production
     public static int maxOper;
 
 
@@ -72,15 +73,22 @@ public class SGRule : SGObj
 public class SGProducer : SGRule
 {
     public List<SGRule> rules;
+    public Matrix4x4 scope;
+    private LinkedList<Matrix4x4> scopeStack;
+    public GameObject gameObject;
 
     public SGProducer(string token) : base(token)
     {
+        scopeStack = new LinkedList<Matrix4x4>();
         rules = new List<SGRule>();
     }
 
     public SGProducer(SGProducer other) : base(other)
     {
         this.rules = other.rules;
+        this.scope = other.scope;
+        this.scopeStack = other.scopeStack;
+        this.gameObject = other.gameObject;
     }
 
     public override SGRule Copy()
@@ -88,8 +96,26 @@ public class SGProducer : SGRule
         return new SGProducer(this.token);
     }
 
+    public void SaveTransform()
+    {
+        scopeStack.AddLast(scope);
+    }
+
+    public void LoadTransform()
+    {
+        if (scopeStack.Last == null)
+        {
+            Debug.LogWarning("Trying to pop from empty stack");
+            return;
+        }
+        scope = scopeStack.Last.Value;
+        scopeStack.RemoveLast();
+    }
+
     public override void Call(int maxDepth)
     {
+        if (parent != null)
+            scope = parent.scope;
         if (maxDepth >= 0 && maxOper >= 0)
         {
             foreach (SGRule rule in rules)
@@ -125,7 +151,10 @@ public class SGProdGen : SGRule
 
         if (prod == null)
             prod = callback();
-        
+
+        // pass scope and gameobject down the tree
+        prod.scope = parent.scope;
+        prod.gameObject = parent.gameObject;
         prod.Call(maxDepth);
     }
 }
@@ -146,9 +175,9 @@ public class SGGeneratorBase : SGRule
 
 public class SGGenerator : SGGeneratorBase
 {
-    private Action callback;
+    private Action<SGProducer> callback;
 
-    public SGGenerator(string token, Action callback) : base(token)
+    public SGGenerator(string token, Action<SGProducer> callback) : base(token)
     {
         this.callback = callback;
         parameters = new dynamic[0];
@@ -166,16 +195,16 @@ public class SGGenerator : SGGeneratorBase
     public override void Call(int maxDepth)
     {
         if (maxOper >= 0)
-            callback();
+            callback(parent);
         maxOper--;
     }
 }
 
 public class SGGenerator<T1> : SGGeneratorBase
 {
-    private Action<T1> callback;
+    private Action<SGProducer, T1> callback;
 
-    public SGGenerator(string token, Action<T1> callback) : base(token)
+    public SGGenerator(string token, Action<SGProducer, T1> callback) : base(token)
     {
         this.callback = callback;
         parameters = new dynamic[1];
@@ -194,16 +223,16 @@ public class SGGenerator<T1> : SGGeneratorBase
     public override void Call(int maxDepth)
     {
         if (maxOper >= 0)
-            callback((T1)parameters[0]);
+            callback(parent, (T1)parameters[0]);
         maxOper--;
     }
 }
 
 public class SGGenerator<T1, T2> : SGGeneratorBase
 {
-    private Action<T1, T2> callback;
+    private Action<SGProducer, T1, T2> callback;
 
-    public SGGenerator(string token, Action<T1, T2> callback) : base(token)
+    public SGGenerator(string token, Action<SGProducer, T1, T2> callback) : base(token)
     {
         this.callback = callback;
         parameters = new dynamic[2];
@@ -222,16 +251,16 @@ public class SGGenerator<T1, T2> : SGGeneratorBase
     public override void Call(int maxDepth)
     {
         if (maxOper >= 0)
-            callback((T1)parameters[0], (T2)parameters[1]);
+            callback(parent, (T1)parameters[0], (T2)parameters[1]);
         maxOper--;
     }
 }
 
 public class SGGenerator<T1, T2, T3> : SGGeneratorBase
 {
-    private Action<T1, T2, T3> callback;
+    private Action<SGProducer, T1, T2, T3> callback;
 
-    public SGGenerator(string token, Action<T1, T2, T3> callback) : base(token)
+    public SGGenerator(string token, Action<SGProducer, T1, T2, T3> callback) : base(token)
     {
         this.callback = callback;
         parameters = new dynamic[3];
@@ -250,7 +279,7 @@ public class SGGenerator<T1, T2, T3> : SGGeneratorBase
     public override void Call(int maxDepth)
     {
         if (maxOper >= 0)
-            callback((T1)parameters[0], (T2)parameters[1], (T3)parameters[2]);
+            callback(parent, (T1)parameters[0], (T2)parameters[1], (T3)parameters[2]);
         maxOper--;
     }
 }

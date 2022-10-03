@@ -1,0 +1,6 @@
+#define maxDepth 7
+#define maxOper 1000000	
+
+%%
+
+start: { T(1, 1, 1) PlaceShape("Box") }

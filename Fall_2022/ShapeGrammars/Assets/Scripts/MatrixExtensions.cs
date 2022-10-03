@@ -34,6 +34,31 @@ public static class MatrixExtensions
         scale.z = new Vector4(matrix.m02, matrix.m12, matrix.m22, matrix.m32).magnitude;
         return scale;
     }
+
+    public static Matrix4x4 Translate(this Matrix4x4 matrix, Vector3 translation)
+    {
+        return matrix * Matrix4x4.TRS(translation, Quaternion.identity, Vector3.one);
+    }
+
+    public static Matrix4x4 Rotate(this Matrix4x4 matrix, Vector3 eulerRot)
+    {
+        return matrix * Matrix4x4.TRS(Vector3.zero, Quaternion.Euler(eulerRot), Vector3.one);
+    }
+
+    public static Matrix4x4 Rotate(this Matrix4x4 matrix, Quaternion quat)
+    {
+        return matrix * Matrix4x4.TRS(Vector3.zero, quat, Vector3.one);
+    }
+
+    public static Matrix4x4 Scale(this Matrix4x4 matrix, Vector3 scale)
+    {
+        return matrix * Matrix4x4.TRS(Vector3.zero, Quaternion.identity, scale);
+    }
+
+    public static Matrix4x4 SetScale(this Matrix4x4 matrix, Vector3 scale)
+    {
+        return Matrix4x4.TRS(matrix.GetPosition(), matrix.GetRotation(), scale);
+    }
 }
 
 public static class TransformExtensions

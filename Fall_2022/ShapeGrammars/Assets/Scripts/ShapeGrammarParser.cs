@@ -11,7 +11,7 @@ public class ShapeGrammarParser
     private Dictionary<string, SGVar>      variables;
     private Dictionary<string, SGVar>      prepVars;
 
-    private SGRule opTree;
+    private SGProducer opTree;
 
     private Parser<ELang> parser;
 
@@ -103,7 +103,13 @@ public class ShapeGrammarParser
             // list of production rules
             [ELang.ProdRuleList] = new Token[][]
             {
-                new Token[] { ELang.ProdRule, new Op(o => opTree = o[0]) },
+                new Token[] { ELang.ProdRule, 
+                    new Op(o => 
+                    {
+                        opTree = o[0];
+                        opTree.scope = Matrix4x4.identity;
+                    }) 
+                },
                 new Token[] { ELang.ProdRuleList, ELang.ProdRule }
             },
             [ELang.ProdRule] = new Token[][]
