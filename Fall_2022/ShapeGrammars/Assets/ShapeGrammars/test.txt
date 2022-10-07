@@ -1,6 +1,12 @@
-#define maxDepth 7
-#define maxOper 1000000	
-
+#define maxDepth 9
+#define maxOper 100000
+#var div 3
 %%
 
-start: { T(1, 1, 1) PlaceShape("Box") }
+tree: { T(1, 0, 0) R(0, 45, 0) S(1, 1, 1) Subdiv(div, 0, { subdivy subdivy subdivy }) }
+
+subdivy: { Subdiv(div, 1, { subdivz subdivz subdivz }) }
+
+subdivz: { Subdiv(div, 2, { branch branch branch }) }
+
+branch: { PlaceShape("Box") }

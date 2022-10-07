@@ -1,16 +1,16 @@
-﻿#define maxDepth 5
+﻿#define maxDepth 6
 #var Box "Box"
 #var rot 22.5
 
 %%
 
-start: { x }
+start: { X }
 
-x: { F RL Push() Push() x Pop() RR x Pop() RR F Push() RR F x Pop() RL x }
+X: { F* RL* Push() Push() X* Pop() RR* X* Pop() RR* F* Push() RR* F* X* Pop() RL* X* }
 
-F: { edge edge }
+F: { edge* edge* }
 
-edge: { T(0, .5, 0) Push() SS(.2, 1, .2) PlaceShape(Box) Pop() T(0, .5, 0) F }
+edge: { T(0, .5, 0) Push() SS(.2, 1, .2) PlaceShape(Box) Pop() T(0, .5, 0) F* }
 
 RL: { R(-22.5, 0, 0) }
 RR: { R(22.5, 0, 0) }

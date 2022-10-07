@@ -1,4 +1,4 @@
-#include "turtle_grammar.h"
+﻿#include "turtle_grammar.h"
 #include "ppm_image.h"
 #include "glm/glm.hpp"
 #include "glm/gtc/constants.hpp"
@@ -22,11 +22,15 @@ int main()
 
 	// start production rule
 	std::string start = "I";
-	TurtleGrammarRule* in = new TurtleGrammarRule{ 'I', "F" };
+	TurtleGrammarRule* in = new TurtleGrammarRule{ 'I', "X" };
 	// production rule for Koch island!
 	//TurtleGrammarRule* F = new TurtleGrammarRule{ 'F', "F-F+F+FF-F-F+F" };
 	// different variation
-	TurtleGrammarRule* F = new TurtleGrammarRule{ 'F', "FF-[-F+F+F]+[+F-F-F]" };
+	//TurtleGrammarRule* F = new TurtleGrammarRule{ 'F', "FF-[-F+F+F]+[+F-F-F]" };
+	// another one
+	TurtleGrammarRule* X = new TurtleGrammarRule{ 'X', "F-[[X]+X]+F[+FX]-X" };
+	X->produce = [](Turtle& t, Image& i) {};
+	TurtleGrammarRule* F = new TurtleGrammarRule{ 'F', "FF" };
 	F->produce = [len](Turtle& t, Image& i) {
 		std::vector<vec2> verts;
 		verts.push_back(t.position);
@@ -65,13 +69,14 @@ int main()
 	tg.setStart(start);
 	tg.setTurtle({ 0.0f, vec2(imgSize/2, imgSize/2) });
 	tg.addRule(in);
+	tg.addRule(X);
 	tg.addRule(F);
 	tg.addRule(f);
 	tg.addRule(p);
 	tg.addRule(m);
 	tg.addRule(push);
 	tg.addRule(pop);
-	LOG(tg.generate(4)); // generate the turtle movement rules
+	LOG(tg.generate(2)); // generate the turtle movement rules
 	tg.produce(i); // produce the final image
 
 	i.save("C:/NerdThings/thesis/TurtleGrammars-png/res/test.jpg");

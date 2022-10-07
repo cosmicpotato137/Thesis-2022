@@ -1,0 +1,11 @@
+#define maxDepth 5
+
+%% 
+
+start: { floor* floor* floor* }
+
+floor: { if (front_facing): facade else: PlaceShape("Wall") }
+
+facade: { subdivide(axis=x): { window | window | window } }
+
+window: { PlaceShape("window") }

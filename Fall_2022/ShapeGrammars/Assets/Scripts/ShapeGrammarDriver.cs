@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using cosmicpotato.Scope;
 using Parabox.CSG;
 
 public enum Primitive
@@ -22,48 +23,59 @@ public class ShapeGrammarDriver : MonoBehaviour
     protected Dictionary<string, Shape> shapeDict;
     protected LinkedList<GameObject> objects;
 
-    protected LinkedList<Matrix4x4> scopeStack;
-    //protected Matrix4x4 scope;
-
     protected ShapeGrammarParser parser;
 
     public void OnEnable()
     {
         shapeDict = new Dictionary<string, Shape>();
-        scopeStack = new LinkedList<Matrix4x4>();
         objects = new LinkedList<GameObject>();
          
         // function definitions for the parser
         parser = new ShapeGrammarParser();
         parser.CompileParser();
 
-        Action<SGProducer, string> p = (parent, name) =>
-        {
-            PlaceShape(name, parent.scope);
-        };
-        var a = new SGGenerator<string>("PlaceShape", p);
-        parser.AddGenerator(a);
+        // place shape
+        Action<SGProdGen, string> p = (parent, name) => PlaceShape(name, parent.scope);
+        parser.AddGenerator(new SGGenerator<string>("PlaceShape", p));
 
-        Action<SGProducer, float, float, float> t = 
+        // translate
+        Action<SGProdGen, float, float, float> t = 
             (parent, x, y, z) => parent.scope = parent.scope.Translate(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("T", t));
 
-        Action<SGProducer, float, float, float> r = 
+        // rotate
+        Action<SGProdGen, float, float, float> r = 
             (parent, x, y, z) => parent.scope = parent.scope.Rotate(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("R", r));
 
-        Action<SGProducer, float, float, float> s = 
+        // scale
+        Action<SGProdGen, float, float, float> s = 
             (parent, x, y, z) => parent.scope = parent.scope.Scale(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("S", s));
 
-        Action<SGProducer, float, float, float> ss = 
+        // set scale
+        Action<SGProdGen, float, float, float> ss = 
             (parent, x, y, z) => parent.scope = parent.scope.SetScale(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("SS", s));
 
-        Action<SGProducer> push = (parent) => parent.SaveTransform();
+        // matrix stack ops
+        Action<SGProdGen> push = (parent) => parent.SaveTransform();
         parser.AddGenerator(new SGGenerator("Push", push));
-        Action<SGProducer> pop = (parent) => parent.LoadTransform();
+        Action<SGProdGen> pop = (parent) => parent.LoadTransform();
         parser.AddGenerator(new SGGenerator("Pop", pop));
+
+        // subdivide scope
+        Action<SGProdGen, int, Axis, SGProdGen[]> subdiv = (parent, divs, axis, rules) =>
+        {
+            Matrix4x4[] scopes = parent.scope.SubdivideScope(divs, axis);
+            for (int i = 0; i < scopes.Length && i < rules.Length; i++)
+            {
+                rules[i].scope = scopes[i];
+                rules[i].parent = parent;
+                SGProducer.opQueue.AddLast(rules[i].Copy());
+            }
+        };
+        parser.AddGenerator(new SGGenerator<int, Axis, SGProdGen[]>("Subdiv", subdiv));
     }
 
     public void PlaceShape(string str, Matrix4x4 scope)

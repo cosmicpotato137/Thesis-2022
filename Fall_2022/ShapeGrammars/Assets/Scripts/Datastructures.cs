@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace cosmicpotato.Datastructures
+namespace cosmicpotato.DataStructures
 {
     public class Node<T>
     {

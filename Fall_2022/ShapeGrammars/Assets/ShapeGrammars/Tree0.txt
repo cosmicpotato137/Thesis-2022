@@ -3,8 +3,6 @@
 
 %%
 
-start: { Push() tree Pop() T(20, 0, 0) tree }
-
 tree: { edge branch }
 
 branch: { 

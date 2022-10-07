@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using cosmicpotato.Datastructures;
+using cosmicpotato.DataStructures;
 
 public class ShapeGrammarParser
 {
@@ -11,7 +11,9 @@ public class ShapeGrammarParser
     private Dictionary<string, SGVar>      variables;
     private Dictionary<string, SGVar>      prepVars;
 
-    private SGProducer opTree;
+    private SGProdGen opTree;
+
+    private LinkedList<SGRule> opQueue;
 
     private Parser<ELang> parser;
 
@@ -21,6 +23,7 @@ public class ShapeGrammarParser
         producers = new Dictionary<string, SGProducer>();
         variables = new Dictionary<string, SGVar>();
         prepVars = new Dictionary<string, SGVar>();
+        opQueue = new LinkedList<SGRule>();
 
         SGVar depth = new SGVar("maxDepth", -1);
         prepVars.Add(depth.token, depth);
@@ -42,8 +45,16 @@ public class ShapeGrammarParser
         if (prepVars.ContainsKey("maxOper") && prepVars["maxOper"].Get<int>() > 0)
             maxOper = prepVars["maxOper"].Get<int>();
 
-        SGRule.maxOper = maxOper;
-        opTree.Call(maxDepth);
+        SGRule.maxDepth = maxDepth;
+        opQueue.AddLast(opTree);
+
+        int i = 0;
+        while (opQueue.Count > 0 && i < maxOper)
+        {
+            opQueue.First.Value.Call();
+            opQueue.RemoveFirst();
+            i++;
+        }
     }
 
     public void AddGenerator(SGGeneratorBase rule)
@@ -66,10 +77,10 @@ public class ShapeGrammarParser
     {
         // production rules
         START, Rule, RuleList, ExpList, Exp, ProdRule, ProdRuleList, 
-        Var, VarList,
+        Var, VarList, Array,
         // symbols
         Ignore, LParen, RParen, Number, Name, RArrow, Colon, Comma, Break,
-        Pound, Equals, LBrac, RBrac, String
+        Pound, Equals, LBrac, RBrac, String, Star, Quote
     }
 
     public void CompileParser()
@@ -89,9 +100,9 @@ public class ShapeGrammarParser
             [ELang.Pound] = "\\#",
             [ELang.Equals] = @"=",
             [ELang.LBrac] = "{",
-            [ELang.RBrac] = "}"
+            [ELang.RBrac] = "}",
+            [ELang.Star] = "\\*",
         });
-
 
         var grammarRules = new GrammarRules<ELang>(new Dictionary<ELang, Token[][]>()
         {
@@ -106,8 +117,12 @@ public class ShapeGrammarParser
                 new Token[] { ELang.ProdRule, 
                     new Op(o => 
                     {
-                        opTree = o[0];
+                        SGProducer.opQueue = this.opQueue;
+                        SGProducer p = o[0];
+                        SGProdGen pg = new SGProdGen("__BEGIN__", () => p);
+                        opTree = pg;
                         opTree.scope = Matrix4x4.identity;
+                        opTree.depth = 0;
                     }) 
                 },
                 new Token[] { ELang.ProdRuleList, ELang.ProdRule }
@@ -126,7 +141,6 @@ public class ShapeGrammarParser
                         Node<SGRule> genNode = o[3];
                         while (genNode != null)
                         {
-                            genNode.Value.parent = p;
                             p.rules.Add(genNode.Value);
                             genNode = genNode.Next;
                         }
@@ -162,6 +176,20 @@ public class ShapeGrammarParser
                                 throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
                         };
                         o[0] = new SGProdGen(name, findProd);
+                    })
+                },
+                new Token[] { ELang.Name, ELang.Star,
+                    new Op(o => 
+                    {
+                        string name = o[0];
+                        Func<SGProducer> findProd = () =>
+                        {
+                            if (producers.ContainsKey(name))
+                                return producers[name];
+                            else
+                                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
+                        };
+                        o[0] = new SGProdGen(name, findProd, depthFirst:true);
                     })
                 },
                 // function with no parameters
@@ -215,13 +243,13 @@ public class ShapeGrammarParser
                     })
                 }
             },
-            // single argument
+            // single parameter
             [ELang.Exp] = new Token[][]
             {
                 new Token[] { ELang.Number, new Op(o => o[0] = Convert.ToDouble(o[0])) },
-                new Token[] { ELang.String, 
+                new Token[] { ELang.String,
                     new Op(o => 
-                    { 
+                    {
                         string s = Convert.ToString(o[0]);
                         o[0] = s.Substring(1, s.Length - 2);
                     }) 
@@ -231,11 +259,34 @@ public class ShapeGrammarParser
                     {
                         if (variables.ContainsKey(o[0]))
                             o[0] = variables[o[0]].Get<dynamic>();
-                    
+                        else
+                            throw new AccessViolationException($"variable not found: {o[0]}");
                     }) 
+                },
+                new Token[] { ELang.LBrac, ELang.RuleList, ELang.RBrac,
+                    new Op(o =>
+                    {
+                        Node<SGRule> rules = o[1];
+                        List<SGProdGen> gens = new List<SGProdGen>();
+                        while (rules != null)
+                        {
+                            if (rules.Value.GetType() == typeof(SGProdGen))
+                            {
+                                var r = (SGProdGen)rules.Value;
+                                r.adoptParentScope = false;
+                                gens.Add(r);
+                                rules = rules.Next;
+                            }
+                            else
+                                throw new ArrayTypeMismatchException($"Unsupported list type: {rules.Value.GetType()}");
+                        }
+                        o[0] = new SGProdGen[gens.Count];
+                        gens.CopyTo(o[0], 0);
+                    })
                 }
             },
 
+            // variables
             [ELang.VarList] = new Token[][]
             {
                 new Token[] { ELang.Var },
