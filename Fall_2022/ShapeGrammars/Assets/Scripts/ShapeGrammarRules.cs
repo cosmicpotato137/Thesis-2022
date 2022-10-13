@@ -47,30 +47,63 @@ public class SGVar : SGObj
 
 public class SGProducer : SGObj
 {
-    public List<SGRule> rules;
+    public List<LinkedList<SGRule>> ruleLists;
+    public List<float> p;
 
     public static LinkedList<SGRule> opQueue;
+    public static int seed = 1234;
 
     public SGProducer(string token) : base(token)
     {
-        rules = new List<SGRule>();
+        ruleLists = new List<LinkedList<SGRule>>();
+        p = new List<float>();
     }
 
     public SGProducer(SGProducer other) : base(other)
     {
-        this.rules = other.rules;
+        this.ruleLists = other.ruleLists;
+        this.p = other.p;
     }
 
     public void PushChildren(SGProdGen prodGen)
     {
+        int idx = 0;
+        if (p.Count > 0)
+        {
+            // normalize probabilities
+            List<float> ps = new List<float>();
+            float mag = 0;
+            foreach (float f in p)
+                mag += f;
+            float tot = 0;
+            for (int i = 0; i < p.Count; i++)
+            {
+                ps.Add(tot + p[i] / mag);
+                tot += p[i] / mag;
+            }
+
+            System.Random rg = new System.Random(seed);
+            float rand = (float)rg.NextDouble();
+            while (ps[idx] < rand)
+            {
+                idx++;
+            }
+            if (idx == ps.Count)
+                idx--;
+        }
+
+        var rules = ruleLists[idx];
         // for shape elements that must be evaluated first
         if (prodGen.depthFirst)
         {
-            for (int i = rules.Count - 1; i >= 0; i--)
+            LinkedListNode<SGRule> n = rules.Last;
+            while (n != null)
             {
-                rules[i].depth = prodGen.depth + 1;
-                rules[i].parent = prodGen.parent;
-                opQueue.AddAfter(opQueue.First, rules[i].Copy());
+                var rule = n.Value;
+                rule.depth = prodGen.depth + 1;
+                rule.parent = prodGen.parent;
+                opQueue.AddAfter(opQueue.First, rule.Copy());
+                n = n.Previous;
             }
         }
         else

@@ -39,6 +39,8 @@ public class ShapeGrammarParser
         prepVars.Add(depth.token, depth);
         SGVar oper = new SGVar("maxOper", -1);
         prepVars.Add(oper.token, oper);
+        SGVar seed = new SGVar("seed", 1234);
+        prepVars.Add(seed.token, seed);
     }
 
     public ParseResult<string> Parse(TextAsset text)
@@ -55,6 +57,8 @@ public class ShapeGrammarParser
             maxDepth = prepVars["maxDepth"].Get<int>();
         if (prepVars.ContainsKey("maxOper") && prepVars["maxOper"].Get<int>() > 0)
             maxOper = prepVars["maxOper"].Get<int>();
+        if (prepVars.ContainsKey("seed"))
+            SGProducer.seed = prepVars["seed"].Get<int>();
 
         SGRule.maxDepth = maxDepth;
         opQueue.AddLast(opTree);
@@ -152,19 +156,7 @@ public class ShapeGrammarParser
                         // make a new producer and add it's children
                         var p = new SGProducer(o[0]);
                         AddProducer(p);
-                        Node<dynamic> genNode = o[3];
-                        while (genNode != null)
-                        {
-                            try
-                            {
-                                p.rules.Add((SGRule)genNode.Value);
-                                genNode = genNode.Next;
-                            }
-                            catch (Exception)
-                            {
-		                        throw new Exception("Non-rule found in a rule list");
-                            }
-                        }
+                        p.ruleLists.Add(o[3]);
                         o[0] = p;
                     })
                 },
@@ -173,20 +165,24 @@ public class ShapeGrammarParser
                     {
                         var p = new SGProducer(o[0]);
                         AddProducer(p);
-                        Node<dynamic> genNode = o[2].Value;
-                        while (genNode != null)
+                        foreach (Tuple<float, LinkedList<SGRule>> pair in o[2])
                         {
-                            try
-                            {
-                                p.rules.Add((SGRule)genNode.Value);
-                                genNode = genNode.Next;
-                            }
-                            catch (Exception)
-                            {
-                                throw new Exception("Non-rule found in a rule list");
-                            }
+                            p.p.Add(pair.Item1);
+                            p.ruleLists.Add(pair.Item2);
                         }
                         o[0] = p;
+                        //while (genNode != null)
+                        //{
+                        //    try
+                        //    {
+                        //        p.rules.Add((SGRule)genNode.Value);
+                        //        genNode = genNode.Next;
+                        //    }
+                        //    catch (Exception)
+                        //    {
+                        //        throw new Exception("Non-rule found in a rule list");
+                        //    }
+                        //}
                     })
                 },
             },
@@ -194,38 +190,59 @@ public class ShapeGrammarParser
             {
                 new Token[] { ELang.LParen, ELang.Number, ELang.RParen, 
                     ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac, 
-                    new Op(o => o[0] = new Node<Node<dynamic>>(o[4])) },
+                    new Op(o => 
+                    {
+                        var lst = new LinkedList<Tuple<float, LinkedList<SGRule>>>();
+                        o[1] = Convert.ToDouble(o[1]);
+                        lst.AddFirst(new Tuple<float, LinkedList<SGRule>>((float)o[1], o[4]));
+                        o[0] = lst;
+                    }) 
+                },
                 new Token[] { ELang.LParen, ELang.Number, ELang.RParen, 
                     ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac, ELang.GenRuleLists,
                     new Op(o => 
                     {
-                        var n = new Node<Node<dynamic>>(o[4]);
-                        n.Next = o[6];
-                        o[0] = n;
+                        o[1] = Convert.ToDouble(o[1]);
+                        o[6].AddFirst(new Tuple<float, LinkedList<SGRule>>((float)o[1], o[4]));
+                        o[0] = o[6];
                     })
                 }
             },
             // list of generator rules
             [ELang.GenRuleList] = new Token[][]
             {
-                new Token[] { ELang.Exp, new Op(o => o[0] = new Node<dynamic>(o[0])) },
+                new Token[] { ELang.Exp, 
+                    new Op(o =>
+                    {
+                        var lst = new LinkedList<SGRule>();
+                        lst.AddFirst(o[0]);
+                        o[0] = lst;
+                    }) 
+                },
                 new Token[] { ELang.Exp, ELang.GenRuleList,
                     new Op(o =>
                     {
-                        o[0] = new Node<dynamic>(o[0]);
-                        o[0].Next = o[1];
+                        o[1].AddFirst(o[0]);
+                        o[0] = o[1];
                     })
                 }
             },
             // list of parameters
             [ELang.ExpList] = new Token[][]
             {
-                new Token[] { ELang.Exp, new Op(o => o[0] = new Node<dynamic>(o[0])) },
+                new Token[] { ELang.Exp, 
+                    new Op(o => 
+                    {
+                        var lst = new LinkedList<dynamic>();
+                        lst.AddFirst(o[0]);
+                        o[0] = lst;
+                    }) 
+                },
                 new Token[] { ELang.Exp, ELang.Comma, ELang.ExpList,
                     new Op(o => 
                     {
-                        o[0] = new Node<dynamic>(o[0]);
-                        o[0].Next = o[2];
+                        o[2].AddFirst(o[0]);
+                        o[0] = o[2];
                     })
                 }
             },
@@ -313,22 +330,28 @@ public class ShapeGrammarParser
                         if (generators.ContainsKey(o[0]))
                         {
                             // add all parameters to the generator
-                            Node<dynamic> expList = o[2];
-                            int i = 0;
                             var g = generators[o[0]].Copy();
-                            while (expList != null && i < g.parameters.Length)
-                            {
-                                g.parameters[i] = expList.Value;
-                                expList = expList.Next;
-                                i++;
-                            }
-                            // make sure the function has the right number of params
-                            if (expList != null)
-                                throw new ArgumentException($"Too many arguments in function: {o[0]}");
-                            else if (i < g.parameters.Length)
+                            LinkedList<dynamic> expList = o[2];
+
+                            if (g.parameters.Length > expList.Count)
                                 throw new ArgumentException($"Too few arguments in function: {o[0]}");
-                            else
-                                o[0] = g;
+                            else if (g.parameters.Length < expList.Count)
+                                throw new ArgumentException($"Too many arguments in function: {o[0]}");
+
+                            expList.CopyTo(g.parameters, 0);
+                            o[0] = g;
+
+                           // int i = 0;
+                           // while (expList != null && i < g.parameters.Length)
+                           // {
+                           //     g.parameters[i] = expList.Value;
+                           //     expList = expList.Next;
+                           //     i++;
+                           // }
+                           // // make sure the function has the right number of params
+
+                           //else
+                           //     o[0] = g;
                         }
                         else
                         {
@@ -341,27 +364,19 @@ public class ShapeGrammarParser
                 new Token[] { ELang.Name, ELang.LCBrac, ELang.ExpList, ELang.RCBrac,
                     new Op(o =>
                     {
-                        //o[0] = (SGProdGen)o[1].Value;
                         if (!sgTypes.ContainsKey(o[0]))
                             throw new TypeUnloadedException($"Type does not exist: {o[0]}");
-                        Type arrType = sgTypes[o[0]];
 
-                        Node<dynamic> rules = o[2];
-                        List<dynamic> gens = new List<dynamic>();
-                        while (rules != null)
+                        Type arrType = sgTypes[o[0]];
+                        LinkedList<dynamic> rules = o[2];
+                        foreach (dynamic rule in rules)
                         {
-                            var typ = rules.Value.GetType().BaseType;
-                            if (typ == typeof(SGRule) || typ == typeof(SGGeneratorBase))
-                            {
-                                var r = rules.Value;
-                                gens.Add(r);
-                                rules = rules.Next;
-                            }
-                            else
-                                throw new ArrayTypeMismatchException($"Unsupported list type: {rules.Value.GetType()}");
+                            var typ = rule.GetType().BaseType;
+                            if (typ != typeof(SGRule) && typ != typeof(SGGeneratorBase))
+                                throw new ArrayTypeMismatchException($"Unsupported list type: {rule.GetType()}");
                         }
-                        o[0] = new SGRule[gens.Count];
-                        gens.CopyTo(o[0]);
+                        o[0] = new SGRule[rules.Count];
+                        rules.CopyTo(o[0], 0);
                     })
                 }
             },

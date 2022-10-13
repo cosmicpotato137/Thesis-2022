@@ -1,13 +1,16 @@
 #define maxDepth 9
 #define maxOper 100
-#var x 3
+#define seed 12
+#define seed 1
+
+#var x 1234
 
 #var y 1
 
 %%
 
 tree: 
-	(.1){ T(1, 1, 1) AtDepth(3, sgrule{ box() }) tree() }
-	(.1){ T(1, 2, 2) AtDepth(3, sgrule{ box() }) tree() }
+	(.5){ T(1, 1, 1) AtDepth(3, sgrule{ box() }) tree() }
+	(.5){ T(1, 2, 2) AtDepth(3, sgrule{ box() }) tree() }
 
 box: { PlaceShape("Box") }

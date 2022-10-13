@@ -5,7 +5,8 @@
 
 tree: { edge() branch() }
 
-branch: { 
+branch: 
+(1){ 
 	T(0, 2, 0) 
 	Push() R(20, 0, 0) edge() R(0, 45, 0) branch() Pop() 
 	R(-20, 0, 0) edge() R(0, -45, 0) branch() 
