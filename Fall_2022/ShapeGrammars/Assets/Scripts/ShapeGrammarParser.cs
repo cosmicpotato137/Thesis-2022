@@ -39,7 +39,7 @@ public class ShapeGrammarParser
         prepVars.Add(depth.token, depth);
         SGVar oper = new SGVar("maxOper", -1);
         prepVars.Add(oper.token, oper);
-        SGVar seed = new SGVar("seed", 1234);
+        SGVar seed = new SGVar("seed", -1);
         prepVars.Add(seed.token, seed);
     }
 
@@ -57,8 +57,10 @@ public class ShapeGrammarParser
             maxDepth = prepVars["maxDepth"].Get<int>();
         if (prepVars.ContainsKey("maxOper") && prepVars["maxOper"].Get<int>() > 0)
             maxOper = prepVars["maxOper"].Get<int>();
-        if (prepVars.ContainsKey("seed"))
-            SGProducer.seed = prepVars["seed"].Get<int>();
+        if (prepVars.ContainsKey("seed") && prepVars["seed"].Get<int>() > 0)
+            SGProducer.rg = new System.Random(prepVars["seed"].Get<int>());
+        else
+            SGProducer.rg = new System.Random();
 
         SGRule.maxDepth = maxDepth;
         opQueue.AddLast(opTree);

@@ -51,7 +51,8 @@ public class SGProducer : SGObj
     public List<float> p;
 
     public static LinkedList<SGRule> opQueue;
-    public static int seed = 1234;
+    public static System.Random rg = new System.Random(1234);
+    
 
     public SGProducer(string token) : base(token)
     {
@@ -82,7 +83,6 @@ public class SGProducer : SGObj
                 tot += p[i] / mag;
             }
 
-            System.Random rg = new System.Random(seed);
             float rand = (float)rg.NextDouble();
             while (ps[idx] < rand)
             {
