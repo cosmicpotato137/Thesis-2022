@@ -1,12 +1,13 @@
 #define maxDepth 9
-#define maxOper 100000
-#var div 3
+#define maxOper 100
+#var x 3
+
+#var y 1
+
 %%
 
-tree: { T(1, 0, 0) R(0, 45, 0) S(1, 1, 1) Subdiv(div, 0, { subdivy subdivy subdivy }) }
+tree: 
+	(.1){ T(1, 1, 1) AtDepth(3, sgrule{ box() }) tree() }
+	(.1){ T(1, 2, 2) AtDepth(3, sgrule{ box() }) tree() }
 
-subdivy: { Subdiv(div, 1, { subdivz subdivz subdivz }) }
-
-subdivz: { Subdiv(div, 2, { branch branch branch }) }
-
-branch: { PlaceShape("Box") }
+box: { PlaceShape("Box") }

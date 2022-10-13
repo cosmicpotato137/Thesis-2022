@@ -3,12 +3,12 @@
 
 %%
 
-tree: { edge branch }
+tree: { edge() branch() }
 
 branch: { 
 	T(0, 2, 0) 
-	Push() R(20, 0, 0) edge R(0, 45, 0) branch Pop() 
-	R(-20, 0, 0) edge R(0, -45, 0) branch 
+	Push() R(20, 0, 0) edge() R(0, 45, 0) branch() Pop() 
+	R(-20, 0, 0) edge() R(0, -45, 0) branch() 
 }
 
-edge: { Push() T(0, 1, 0) SS(.2, 2, .2) PlaceShape(Box) Pop() }
+edge: { Push() T(0, 1, 0) SS(.2, 2, .2) PlaceShape("Box") Pop() }

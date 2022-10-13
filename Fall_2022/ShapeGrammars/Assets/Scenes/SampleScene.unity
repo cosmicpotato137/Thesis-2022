@@ -253,7 +253,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   shapes:
   - {fileID: 11400000, guid: f57ceb3f94d3ab8428bd50218e33a17d, type: 2}
-  textFile: {fileID: 4900000, guid: 3bef5f556961661458e22f8ba341484d, type: 3}
+  textFile: {fileID: 4900000, guid: 8428963e6c442e546a01e84d6599c1bb, type: 3}
 --- !u!1 &1997318603
 GameObject:
   m_ObjectHideFlags: 0

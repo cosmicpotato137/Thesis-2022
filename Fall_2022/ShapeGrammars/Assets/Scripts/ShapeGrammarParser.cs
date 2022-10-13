@@ -8,14 +8,16 @@ public class ShapeGrammarParser
 {
     private Dictionary<string, SGGeneratorBase>     generators;
     private Dictionary<string, SGProducer>          producers;
-    private Dictionary<string, SGVar>      variables;
-    private Dictionary<string, SGVar>      prepVars;
+    private Dictionary<string, SGVar>               variables;
+    private Dictionary<string, SGVar>               prepVars;
+    private Dictionary<string, Type>                sgTypes;
 
     private SGProdGen opTree;
 
     private LinkedList<SGRule> opQueue;
 
     private Parser<ELang> parser;
+
 
     public ShapeGrammarParser()
     {
@@ -24,6 +26,14 @@ public class ShapeGrammarParser
         variables = new Dictionary<string, SGVar>();
         prepVars = new Dictionary<string, SGVar>();
         opQueue = new LinkedList<SGRule>();
+
+        // types for sg language
+        sgTypes = new Dictionary<string, Type>();
+        sgTypes.Add("string", typeof(string));
+        sgTypes.Add("int", typeof(int));
+        sgTypes.Add("sgrule", typeof(SGRule));
+        sgTypes.Add("sgprod", typeof(SGProdGen));
+        sgTypes.Add("sggen", typeof(SGProdGen));
 
         SGVar depth = new SGVar("maxDepth", -1);
         prepVars.Add(depth.token, depth);
@@ -35,6 +45,7 @@ public class ShapeGrammarParser
     {
         producers.Clear();
         variables.Clear();
+        opQueue.Clear();
         return parser.Parse<string>(text.text);
     }
 
@@ -70,17 +81,18 @@ public class ShapeGrammarParser
     public bool NameExsists(string token)
     {
         return producers.ContainsKey(token) || generators.ContainsKey(token) || 
-            variables.ContainsKey(token) || prepVars.ContainsKey(token);
+            variables.ContainsKey(token) || prepVars.ContainsKey(token) ||
+            sgTypes.ContainsKey(token);
     }
 
     private enum ELang
     {
         // production rules
-        START, Rule, RuleList, ExpList, Exp, ProdRule, ProdRuleList, 
-        Var, VarList, Array,
+        START, Rule, GenRuleList, ExpList, Exp, ProdRule, ProdRuleList, 
+        Var, VarList, Array, GenRuleLists,
         // symbols
         Ignore, LParen, RParen, Number, Name, RArrow, Colon, Comma, Break,
-        Pound, Equals, LBrac, RBrac, String, Star, Quote
+        Pound, Equals, LCBrac, RCBrac, LBrac, RBrac, String, Star, Quote
     }
 
     public void CompileParser()
@@ -99,8 +111,10 @@ public class ShapeGrammarParser
             [ELang.Break] = @"%%",
             [ELang.Pound] = "\\#",
             [ELang.Equals] = @"=",
-            [ELang.LBrac] = "{",
-            [ELang.RBrac] = "}",
+            [ELang.LCBrac] = "{",
+            [ELang.RCBrac] = "}",
+            [ELang.LBrac] = "\\[",
+            [ELang.RBrac] = "\\]",
             [ELang.Star] = "\\*",
         });
 
@@ -109,13 +123,13 @@ public class ShapeGrammarParser
             [ELang.START] = new Token[][]
             {
                 new Token[] { ELang.ProdRuleList, new Op(o => o[0] = "Shape Grammar") },
-                new Token[] { ELang.VarList, ELang.Break, ELang.ProdRuleList, new Op(o => o[0] = "Shape Grammar")}
+                new Token[] { ELang.VarList, ELang.Break, ELang.ProdRuleList, new Op(o => o[0] = "Shape Grammar") }
             },
             // list of production rules
             [ELang.ProdRuleList] = new Token[][]
             {
-                new Token[] { ELang.ProdRule, 
-                    new Op(o => 
+                new Token[] { ELang.ProdRule,
+                    new Op(o =>
                     {
                         SGProducer.opQueue = this.opQueue;
                         SGProducer p = o[0];
@@ -123,13 +137,13 @@ public class ShapeGrammarParser
                         opTree = pg;
                         opTree.scope = Matrix4x4.identity;
                         opTree.depth = 0;
-                    }) 
+                    })
                 },
                 new Token[] { ELang.ProdRuleList, ELang.ProdRule }
             },
             [ELang.ProdRule] = new Token[][]
             {
-                new Token[] { ELang.Name, ELang.Colon, ELang.LBrac, ELang.RuleList, ELang.RBrac,
+                new Token[] { ELang.Name, ELang.Colon, ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac,
                     new Op(o =>
                     {
                         if (NameExsists(o[0]))
@@ -138,98 +152,70 @@ public class ShapeGrammarParser
                         // make a new producer and add it's children
                         var p = new SGProducer(o[0]);
                         AddProducer(p);
-                        Node<SGRule> genNode = o[3];
+                        Node<dynamic> genNode = o[3];
                         while (genNode != null)
                         {
-                            p.rules.Add(genNode.Value);
-                            genNode = genNode.Next;
+                            try
+                            {
+                                p.rules.Add((SGRule)genNode.Value);
+                                genNode = genNode.Next;
+                            }
+                            catch (Exception)
+                            {
+		                        throw new Exception("Non-rule found in a rule list");
+                            }
                         }
                         o[0] = p;
+                    })
+                },
+                new Token[] { ELang.Name, ELang.Colon, ELang.GenRuleLists, 
+                    new Op(o => 
+                    {
+                        var p = new SGProducer(o[0]);
+                        AddProducer(p);
+                        Node<dynamic> genNode = o[2].Value;
+                        while (genNode != null)
+                        {
+                            try
+                            {
+                                p.rules.Add((SGRule)genNode.Value);
+                                genNode = genNode.Next;
+                            }
+                            catch (Exception)
+                            {
+                                throw new Exception("Non-rule found in a rule list");
+                            }
+                        }
+                        o[0] = p;
+                    })
+                },
+            },
+            [ELang.GenRuleLists] = new Token[][]
+            {
+                new Token[] { ELang.LParen, ELang.Number, ELang.RParen, 
+                    ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac, 
+                    new Op(o => o[0] = new Node<Node<dynamic>>(o[4])) },
+                new Token[] { ELang.LParen, ELang.Number, ELang.RParen, 
+                    ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac, ELang.GenRuleLists,
+                    new Op(o => 
+                    {
+                        var n = new Node<Node<dynamic>>(o[4]);
+                        n.Next = o[6];
+                        o[0] = n;
                     })
                 }
             },
             // list of generator rules
-            [ELang.RuleList] = new Token[][]
+            [ELang.GenRuleList] = new Token[][]
             {
-                new Token[] { ELang.Rule, new Op(o => o[0] = new Node<SGRule>(o[0])) },
-                new Token[] { ELang.Rule, ELang.RuleList,
-                    new Op(o => 
+                new Token[] { ELang.Exp, new Op(o => o[0] = new Node<dynamic>(o[0])) },
+                new Token[] { ELang.Exp, ELang.GenRuleList,
+                    new Op(o =>
                     {
-                        o[0] = new Node<SGRule>(o[0]);
+                        o[0] = new Node<dynamic>(o[0]);
                         o[0].Next = o[1];
-                    }) 
+                    })
                 }
-            },
-            [ELang.Rule] = new Token[][]
-            {
-                // SGProdGen: a placeholder for SGProducer, handled at 'runtime'
-                new Token[] { ELang.Name,
-                    new Op(o =>
-                    {
-                        // find the producer corresponding to SGProdGen
-                        string name = o[0];
-                        Func<SGProducer> findProd = () =>
-                        {
-                            if (producers.ContainsKey(name)) 
-                                return producers[name];
-                            else
-                                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
-                        };
-                        o[0] = new SGProdGen(name, findProd);
-                    })
-                },
-                new Token[] { ELang.Name, ELang.Star,
-                    new Op(o => 
-                    {
-                        string name = o[0];
-                        Func<SGProducer> findProd = () =>
-                        {
-                            if (producers.ContainsKey(name))
-                                return producers[name];
-                            else
-                                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
-                        };
-                        o[0] = new SGProdGen(name, findProd, depthFirst:true);
-                    })
-                },
-                // function with no parameters
-                new Token[] { ELang.Name, ELang.LParen, ELang.RParen,
-                    new Op(o =>
-                    {
-                        if (generators.ContainsKey(o[0]))
-                            o[0] = generators[o[0]].Copy();
-                        else
-                            throw new MethodAccessException($"Function: {o[0]} does not exist");
-                    })
-                },
-                // function with parameters
-                new Token[] { ELang.Name, ELang.LParen, ELang.ExpList, ELang.RParen,
-                    new Op(o =>
-                    {
-                        if (generators.ContainsKey(o[0]))
-                        {
-                            // add all parameters to the generator
-                            Node<dynamic> expList = o[2];
-                            int i = 0;
-                            var g = generators[o[0]].Copy();
-                            while (expList != null && i < g.parameters.Length)
-                            {
-                                g.parameters[i] = expList.Value;
-                                expList = expList.Next;
-                                i++;
-                            }
-                            // make sure the function has the right number of params
-                            if (expList != null)
-                                throw new ArgumentException($"Too many arguments in function: {o[0]}");
-                            else
-                                o[0] = g;
-                        }
-                        else
-                        {
-                            throw new MethodAccessException($"Function: {o[0]} does not exist");
-                        }
-                    })
-                },
             },
             // list of parameters
             [ELang.ExpList] = new Token[][]
@@ -259,29 +245,123 @@ public class ShapeGrammarParser
                     {
                         if (variables.ContainsKey(o[0]))
                             o[0] = variables[o[0]].Get<dynamic>();
+                        else if (prepVars.ContainsKey(o[0]))
+                            o[0] = prepVars[o[0]].Get<dynamic>();
+                        else if (sgTypes.ContainsKey(o[0]))
+                            o[0] = sgTypes[o[0]];
                         else
-                            throw new AccessViolationException($"variable not found: {o[0]}");
+                            throw new AccessViolationException($"name not found: {o[0]}");
                     }) 
                 },
-                new Token[] { ELang.LBrac, ELang.RuleList, ELang.RBrac,
+                //new Token[] { ELang.ProdRule, ELang.LParen, ELang.RParen, 
+                //    new Op(o =>
+                //    {
+                //        // find the producer corresponding to SGProdGen
+                //        string name = o[1];
+                //        Func<SGProducer> findProd = () =>
+                //        {
+                //            if (producers.ContainsKey(name))
+                //                return producers[name];
+                //            else
+                //                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
+                //        };
+                //        o[0] = new SGProdGen(name, findProd);
+                //        o[0] = generators[o[1]].Get<SGRule>();
+                //    })
+                //},
+                //new Token[] { ELang.Name, ELang.Star,
+                //    new Op(o =>
+                //    {
+                //        string name = o[0];
+                //        Func<SGProducer> findProd = () =>
+                //        {
+                //            if (producers.ContainsKey(name))
+                //                return producers[name];
+                //            else
+                //                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
+                //        };
+                //        o[0] = new SGProdGen(name, findProd, depthFirst:true);
+                //    })
+                //},
+                // function with no parameters
+                new Token[] { ELang.Name, ELang.LParen, ELang.RParen,
                     new Op(o =>
                     {
-                        Node<SGRule> rules = o[1];
-                        List<SGProdGen> gens = new List<SGProdGen>();
+                        if (generators.ContainsKey(o[0]))
+                            o[0] = generators[o[0]].Copy();
+                        else
+                        {
+                            //throw new MethodAccessException($"Function: {o[0]} does not exist");
+                            // find the producer corresponding to SGProdGen
+                            string name = o[0];
+                            Func<SGProducer> findProd = () =>
+                            {
+                                if (producers.ContainsKey(name))
+                                    return producers[name];
+                                else
+                                    throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
+                            };
+                            o[0] = new SGProdGen(name, findProd);
+                            //o[0] = generators[o[0]].Get<SGRule>();
+                        }
+                    })
+                },
+                // function with parameters
+                new Token[] { ELang.Name, ELang.LParen, ELang.ExpList, ELang.RParen,
+                    new Op(o =>
+                    {
+                        if (generators.ContainsKey(o[0]))
+                        {
+                            // add all parameters to the generator
+                            Node<dynamic> expList = o[2];
+                            int i = 0;
+                            var g = generators[o[0]].Copy();
+                            while (expList != null && i < g.parameters.Length)
+                            {
+                                g.parameters[i] = expList.Value;
+                                expList = expList.Next;
+                                i++;
+                            }
+                            // make sure the function has the right number of params
+                            if (expList != null)
+                                throw new ArgumentException($"Too many arguments in function: {o[0]}");
+                            else if (i < g.parameters.Length)
+                                throw new ArgumentException($"Too few arguments in function: {o[0]}");
+                            else
+                                o[0] = g;
+                        }
+                        else
+                        {
+                            throw new MethodAccessException($"Function: {o[0]} does not exist");
+                        }
+                    })
+                },
+
+                // typed list
+                new Token[] { ELang.Name, ELang.LCBrac, ELang.ExpList, ELang.RCBrac,
+                    new Op(o =>
+                    {
+                        //o[0] = (SGProdGen)o[1].Value;
+                        if (!sgTypes.ContainsKey(o[0]))
+                            throw new TypeUnloadedException($"Type does not exist: {o[0]}");
+                        Type arrType = sgTypes[o[0]];
+
+                        Node<dynamic> rules = o[2];
+                        List<dynamic> gens = new List<dynamic>();
                         while (rules != null)
                         {
-                            if (rules.Value.GetType() == typeof(SGProdGen))
+                            var typ = rules.Value.GetType().BaseType;
+                            if (typ == typeof(SGRule) || typ == typeof(SGGeneratorBase))
                             {
-                                var r = (SGProdGen)rules.Value;
-                                r.adoptParentScope = false;
+                                var r = rules.Value;
                                 gens.Add(r);
                                 rules = rules.Next;
                             }
                             else
                                 throw new ArrayTypeMismatchException($"Unsupported list type: {rules.Value.GetType()}");
                         }
-                        o[0] = new SGProdGen[gens.Count];
-                        gens.CopyTo(o[0], 0);
+                        o[0] = new SGRule[gens.Count];
+                        gens.CopyTo(o[0]);
                     })
                 }
             },

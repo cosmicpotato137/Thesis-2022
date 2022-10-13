@@ -21,5 +21,7 @@ public class ShapeGrammarDriverEditor : Editor
             sgd.GenerateMesh();
         if (GUILayout.Button("Clear Mesh"))
             sgd.ClearMesh();
+        if (GUILayout.Button("Recompile Parser"))
+            sgd.Init();
     }
 }

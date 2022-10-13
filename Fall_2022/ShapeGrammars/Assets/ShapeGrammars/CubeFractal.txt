@@ -1,0 +1,19 @@
+#define maxDepth 20
+#define maxOper 500000
+#var div 3
+
+%%
+
+start: { cx }
+
+cx: { Subdiv(3, 0, { cy cy1 cy })}
+cy: { Subdiv(3, 1, { cz1 cz cz1 })}
+cy1: { Subdiv(3, 1, { cz null cz })}
+cz: { Subdiv(3, 2, { branch null branch })}
+cz1: { Subdiv(3, 2, { branch branch branch })}
+
+branch: { AtDepth(10, {box}) cx }
+
+box: { PlaceShape("Box") }
+
+null: { S(1, 1, 1) }
