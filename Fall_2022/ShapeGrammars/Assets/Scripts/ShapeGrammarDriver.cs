@@ -103,54 +103,54 @@ public class ShapeGrammarDriver : MonoBehaviour
 
         // operate on the component faces of an object
         // todo: test this
-        //Action<SGProdGen, SGProdGen> getFaces = (parent, rule) =>
-        //{
-        //    if (parent.gameObjects.Count < 0)
-        //    {
-        //        Debug.Log("Parent GameObject is null");
-        //        return;
-        //    }
-        //    List<GameObject> newList = new List<GameObject>();
-        //    for (int i = 0; i < parent.gameObjects.Count; i++)
-        //    {
-        //        Mesh mesh = parent.gameObjects[i].GetComponent<MeshFilter>().sharedMesh;
-        //        Mesh[] meshes = new Mesh[mesh.triangles.Length / 3];
-        //        for (int j = 0; j < mesh.triangles.Length; j += 6)
-        //        {
-        //            var idx = mesh.triangles[j];
-        //            Mesh m = new Mesh();
-        //            Vector3[] verts = new Vector3[6];
-        //            verts[0] = mesh.vertices[mesh.triangles[j]];
-        //            verts[1] = mesh.vertices[mesh.triangles[j + 1]];
-        //            verts[2] = mesh.vertices[mesh.triangles[j + 2]];
-        //            verts[3] = mesh.vertices[mesh.triangles[j + 3]];
-        //            verts[4] = mesh.vertices[mesh.triangles[j + 4]];
-        //            verts[5] = mesh.vertices[mesh.triangles[j + 5]];
-        //            m.vertices = verts;
-        //            m.triangles = new int[] { 0, 1, 2, 3, 4, 5 };
-        //            m.Optimize();
-        //            m.OptimizeIndexBuffers();
-        //            m.RecalculateNormals();
-        //            m.RecalculateBounds();
+        Action<SGProdGen, SGProdGen> getFaces = (parent, rule) =>
+        {
+            if (parent.gameObjects.Count < 0)
+            {
+                Debug.Log("Parent GameObject is null");
+                return;
+            }
+            List<GameObject> newList = new List<GameObject>();
+            for (int i = 0; i < parent.gameObjects.Count; i++)
+            {
+                Mesh mesh = parent.gameObjects[i].GetComponent<MeshFilter>().sharedMesh;
+                Mesh[] meshes = new Mesh[mesh.triangles.Length / 3];
+                for (int j = 0; j < mesh.triangles.Length; j += 6)
+                {
+                    var idx = mesh.triangles[j];
+                    Mesh m = new Mesh();
+                    Vector3[] verts = new Vector3[6];
+                    verts[0] = mesh.vertices[mesh.triangles[j]];
+                    verts[1] = mesh.vertices[mesh.triangles[j + 1]];
+                    verts[2] = mesh.vertices[mesh.triangles[j + 2]];
+                    verts[3] = mesh.vertices[mesh.triangles[j + 3]];
+                    verts[4] = mesh.vertices[mesh.triangles[j + 4]];
+                    verts[5] = mesh.vertices[mesh.triangles[j + 5]];
+                    m.vertices = verts;
+                    m.triangles = new int[] { 0, 1, 2, 3, 4, 5 };
+                    m.Optimize();
+                    m.OptimizeIndexBuffers();
+                    m.RecalculateNormals();
+                    m.RecalculateBounds();
 
-        //            GameObject g = new GameObject(parent.gameObjects[i].name + "_" + Convert.ToString(j));
-        //            g.transform.SetParent(parent.gameObjects[i].transform.parent);
-        //            var f = g.AddComponent<MeshFilter>();
-        //            f.mesh = m;
-        //            g.AddComponent<MeshRenderer>();
-        //            g.GetComponent<Renderer>().material = parent.gameObjects[i].GetComponent<Renderer>().sharedMaterial;
+                    GameObject g = new GameObject(parent.gameObjects[i].name + "_" + Convert.ToString(j));
+                    g.transform.SetParent(parent.gameObjects[i].transform.parent);
+                    var f = g.AddComponent<MeshFilter>();
+                    f.mesh = m;
+                    g.AddComponent<MeshRenderer>();
+                    g.GetComponent<Renderer>().material = parent.gameObjects[i].GetComponent<Renderer>().sharedMaterial;
 
-        //            SGProdGen r = (SGProdGen)rule.Copy();
-        //            r.gameObjects.Add(g);
-        //            r.parent = parent;
-        //            r.adoptParentScope = false;
-        //            SGProducer.opQueue.AddLast(r);
-        //        }
-        //        DestroyImmediate(parent.gameObjects[i]);
-        //        parent.gameObjects.RemoveAt(i);
-        //    }
-        //};
-        //parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
+                    SGProdGen r = (SGProdGen)rule.Copy();
+                    r.gameObjects.Add(g);
+                    r.parent = parent;
+                    r.adoptParentScope = false;
+                    SGProducer.opQueue.AddLast(r);
+                }
+                DestroyImmediate(parent.gameObjects[i]);
+                parent.gameObjects.RemoveAt(i);
+            }
+        };
+        parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
     }
 
     // run the parser on a shape grammar file
