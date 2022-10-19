@@ -150,7 +150,7 @@ public class ShapeGrammarDriver : MonoBehaviour
                 parent.gameObjects.RemoveAt(i);
             }
         };
-        parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
+        //parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
     }
 
     // run the parser on a shape grammar file
