@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
+// custom unity editor for ShapeGrammarDriver
+
 [CustomEditor(typeof(ShapeGrammarDriver))]
 public class ShapeGrammarDriverEditor : Editor
 {
@@ -17,11 +19,12 @@ public class ShapeGrammarDriverEditor : Editor
     {
         base.OnInspectorGUI();
 
+        // UI buttons for calling driver methods
         if (GUILayout.Button("Generate Mesh"))
             sgd.GenerateMesh();
         if (GUILayout.Button("Clear Mesh"))
             sgd.ClearMesh();
-        if (GUILayout.Button("Recompile Parser"))
-            sgd.Init();
+        if (GUILayout.Button("Parse Grammar"))
+            sgd.ParseGrammar();
     }
 }

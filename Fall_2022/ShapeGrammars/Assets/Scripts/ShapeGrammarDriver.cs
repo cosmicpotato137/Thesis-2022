@@ -4,107 +4,49 @@ using UnityEngine;
 using cosmicpotato.Scope;
 using Parabox.CSG;
 
-public enum Primitive 
-{
-    Box = 0,
-    Sphere
-}
-
 [ExecuteInEditMode]
-//[RequireComponent(typeof(ShapeGrammarParser))]
 public class ShapeGrammarDriver : MonoBehaviour
 {
-    public List<Shape> shapes;
+    public List<GameObject> shapes;
     public List<SGGeneratorBase> grammarRules;
 
     [Header("Parser")]
     public TextAsset textFile;
 
-    protected Dictionary<string, Shape> shapeDict;
+    protected Dictionary<string, GameObject> shapeDict;
     protected LinkedList<GameObject> objects;
 
     protected ShapeGrammarParser parser;
 
     public void OnEnable()
     {
-        Init();
-    }
+        // initialize dictionary of possible shapes
+        shapeDict = new Dictionary<string, GameObject>();
+        objects = new LinkedList<GameObject>();
 
-    public void PlaceShape(string str, Matrix4x4 scope)
-    {
-        if (!shapeDict.ContainsKey(str))
-        {
-            Debug.LogError($"Shape not found: {str}");
-            return;
-        }    
-
-        Shape shape = shapeDict[str];
-        GameObject g = new GameObject(shape.name);
-        g.transform.FromMatrix(scope);
-        g.transform.SetParent(transform);
-        g.AddComponent<MeshFilter>().mesh = shape.mesh;
-        g.AddComponent<MeshRenderer>();
-        g.GetComponent<Renderer>().material = shape.material;
-
-        objects.AddLast(g);
-    }
-
-    public void GenerateMesh()
-    {
-        ClearMesh();
-        foreach (Shape s in shapes)
-        {
-            if (!shapeDict.ContainsKey(s.name))
-                shapeDict.Add(s.name, s);
-        }
-
-
-        var res = parser.Parse(textFile);
-        if (!res.Success)
-        {
-            Debug.Log("Grammar compilation failure.");
-            foreach (var e in res.Errors)
-            {
-                Debug.LogWarning(e.Description);
-            }
-        }
-
-        parser.RunShapeGrammar(9, 1000000);
-
-        // test 1
-        //Save();
-        //Translate(new Vector3(1, 2, 0));
-        //PlaceShape("Box");
-        //Load();
-        //PlaceShape("Box");
-    }
-
-    public void ClearMesh()
-    {
-        while (objects.Count > 0)
-        {
-            DestroyImmediate(objects.First.Value);
-            objects.RemoveFirst();
-        }
-    }
-
-    public void Init()
-    {
         // function definitions for the parser
         parser = new ShapeGrammarParser();
         parser.CompileParser();
 
-        shapeDict = new Dictionary<string, Shape>();
-        objects = new LinkedList<GameObject>();
-
         // place shape
-        Action<SGProdGen, string> p = (parent, name) => PlaceShape(name, parent.scope);
+        Action<SGProdGen, string> p = (parent, name) =>
+        {
+            parent.gameObjects.Add(PlaceShape(name, parent.scope));
+        };
         parser.AddGenerator(new SGGenerator<string>("PlaceShape", p));
 
         // translate
         Action<SGProdGen, float, float, float> t =
             (parent, x, y, z) => parent.scope = parent.scope.Translate(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("T", t));
+
+        // translate local
+        Action<SGProdGen, float, float, float> tl = (parent, x, y, z) =>
+        {
+            Vector3 v = Vector3.Scale(new Vector3(x, y, z), parent.scope.GetScale());
+            parent.scope = parent.scope.Translate(v);
+        };
+        parser.AddGenerator(new SGGenerator<float, float, float>("TL", tl));
 
         // rotate
         Action<SGProdGen, float, float, float> r =
@@ -145,7 +87,7 @@ public class ShapeGrammarDriver : MonoBehaviour
         };
         parser.AddGenerator(new SGGenerator<int, Axis, SGRule[]>("Subdiv", subdiv));
 
-        // do at depth
+        // do something at a given depth
         Action<SGProdGen, int, SGRule[]> dad = (parent, depth, rules) =>
         {
             if (parent.depth >= depth)
@@ -159,14 +101,109 @@ public class ShapeGrammarDriver : MonoBehaviour
         };
         parser.AddGenerator(new SGGenerator<int, SGRule[]>("AtDepth", dad));
 
-        Action<SGProdGen, SGProdGen> test = (parent, rule) =>
+        // operate on the component faces of an object
+        // todo: test this
+        //Action<SGProdGen, SGProdGen> getFaces = (parent, rule) =>
+        //{
+        //    if (parent.gameObjects.Count < 0)
+        //    {
+        //        Debug.Log("Parent GameObject is null");
+        //        return;
+        //    }
+        //    List<GameObject> newList = new List<GameObject>();
+        //    for (int i = 0; i < parent.gameObjects.Count; i++)
+        //    {
+        //        Mesh mesh = parent.gameObjects[i].GetComponent<MeshFilter>().sharedMesh;
+        //        Mesh[] meshes = new Mesh[mesh.triangles.Length / 3];
+        //        for (int j = 0; j < mesh.triangles.Length; j += 6)
+        //        {
+        //            var idx = mesh.triangles[j];
+        //            Mesh m = new Mesh();
+        //            Vector3[] verts = new Vector3[6];
+        //            verts[0] = mesh.vertices[mesh.triangles[j]];
+        //            verts[1] = mesh.vertices[mesh.triangles[j + 1]];
+        //            verts[2] = mesh.vertices[mesh.triangles[j + 2]];
+        //            verts[3] = mesh.vertices[mesh.triangles[j + 3]];
+        //            verts[4] = mesh.vertices[mesh.triangles[j + 4]];
+        //            verts[5] = mesh.vertices[mesh.triangles[j + 5]];
+        //            m.vertices = verts;
+        //            m.triangles = new int[] { 0, 1, 2, 3, 4, 5 };
+        //            m.Optimize();
+        //            m.OptimizeIndexBuffers();
+        //            m.RecalculateNormals();
+        //            m.RecalculateBounds();
+
+        //            GameObject g = new GameObject(parent.gameObjects[i].name + "_" + Convert.ToString(j));
+        //            g.transform.SetParent(parent.gameObjects[i].transform.parent);
+        //            var f = g.AddComponent<MeshFilter>();
+        //            f.mesh = m;
+        //            g.AddComponent<MeshRenderer>();
+        //            g.GetComponent<Renderer>().material = parent.gameObjects[i].GetComponent<Renderer>().sharedMaterial;
+
+        //            SGProdGen r = (SGProdGen)rule.Copy();
+        //            r.gameObjects.Add(g);
+        //            r.parent = parent;
+        //            r.adoptParentScope = false;
+        //            SGProducer.opQueue.AddLast(r);
+        //        }
+        //        DestroyImmediate(parent.gameObjects[i]);
+        //        parent.gameObjects.RemoveAt(i);
+        //    }
+        //};
+        //parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
+    }
+
+    // run the parser on a shape grammar file
+    internal void ParseGrammar()
+    {
+        var res = parser.Parse(textFile);
+        if (!res.Success)
         {
-            SGProdGen r = (SGProdGen)rule.Copy();
-            r.depth = rule.depth + 1;
-            r.parent = parent;
-            SGProducer.opQueue.AddLast(r);
-        };
-        //parser.AddGenerator(new SGGenerator<SGProdGen>("test", test));
+            Debug.Log("Grammar compilation failure.");
+            foreach (var e in res.Errors)
+            {
+                Debug.LogWarning(e.Description);
+            }
+        }
+    }
+
+    // generate a mesh based on the parsed shape grammar
+    public void GenerateMesh()
+    {
+        ClearMesh();
+        foreach (GameObject s in shapes)
+        {
+            if (!shapeDict.ContainsKey(s.name))
+                shapeDict.Add(s.name, s);
+        }
+
+        parser.RunShapeGrammar(9, 1000000);
+    }
+
+    // clear all generated meshes
+    public void ClearMesh()
+    {
+        while (objects.Count > 0)
+        {
+            DestroyImmediate(objects.First.Value);
+            objects.RemoveFirst();
+        }
+    }
+
+    // place a shape at the current scope
+    public GameObject PlaceShape(string str, Matrix4x4 scope)
+    {
+        if (!shapeDict.ContainsKey(str))
+        {
+            Debug.LogError($"Shape not found: {str}");
+            return null;
+        }
+
+        GameObject g = Instantiate(shapeDict[str], transform);
+        g.transform.FromMatrix(scope);
+
+        objects.AddLast(g);
+        return g;
     }
 
 }

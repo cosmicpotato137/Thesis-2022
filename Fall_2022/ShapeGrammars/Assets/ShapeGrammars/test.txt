@@ -1,16 +1,19 @@
-#define maxDepth 9
-#define maxOper 100
-#define seed 12
-#define seed 1
-
-#var x 1234
-
-#var y 1
+#define maxDepth 100
+#define maxOper 500000
 
 %%
 
-tree: 
-	(.5){ T(1, 1, 1) AtDepth(3, sgrule{ box() }) tree() }
-	(.5){ T(1, 2, 2) AtDepth(3, sgrule{ box() }) tree() }
+start: { PlaceShape("Cylinder") DecFaces() }
 
-box: { PlaceShape("Box") }
+
+
+start_: { snk*() start() }
+
+snk: 
+(1){ box*() box*() box*() }
+(1){ box*() box() R(90, 0, 0) T(0, 0, 1) box*() }
+(10){ box*() box() R(-90, 0, 0) T(0, 0, 1) box*() }
+(1){ box*() box() R(0, 90, 0) T(0, 0, 1) box*() }
+(1){ box*() box() R(0, -90, 0) T(0, 0, 1) box*() }
+
+box: { PlaceShape("Cube") T(0, 0, 1) }

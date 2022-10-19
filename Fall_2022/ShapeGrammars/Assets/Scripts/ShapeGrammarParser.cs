@@ -1,8 +1,7 @@
-﻿using CSharpParserGenerator;
+﻿using CSharpParserGenerator; // todo: make a separate plugin out of this
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using cosmicpotato.DataStructures;
 
 public class ShapeGrammarParser
 {
@@ -43,14 +42,21 @@ public class ShapeGrammarParser
         prepVars.Add(seed.token, seed);
     }
 
+    // parse a text file
     public ParseResult<string> Parse(TextAsset text)
     {
         producers.Clear();
         variables.Clear();
         opQueue.Clear();
+
+        prepVars["seed"].Set(-1);
+        prepVars["maxOper"].Set(-1);
+        prepVars["maxDepth"].Set(-1);
+
         return parser.Parse<string>(text.text);
     }
 
+    // run the currently parsed shape grammar
     public void RunShapeGrammar(int maxDepth, int maxOper = 100000)
     {
         if (prepVars.ContainsKey("maxDepth") && prepVars["maxDepth"].Get<int>() > 0)
@@ -59,8 +65,8 @@ public class ShapeGrammarParser
             maxOper = prepVars["maxOper"].Get<int>();
         if (prepVars.ContainsKey("seed") && prepVars["seed"].Get<int>() > 0)
             SGProducer.rg = new System.Random(prepVars["seed"].Get<int>());
-        else
-            SGProducer.rg = new System.Random();
+        
+        SGProducer.rg = new System.Random();
 
         SGRule.maxDepth = maxDepth;
         opQueue.AddLast(opTree);
@@ -74,16 +80,19 @@ public class ShapeGrammarParser
         }
     }
 
+    // add generator to the list of expected generators
     public void AddGenerator(SGGeneratorBase rule)
     {
         generators.Add(rule.token, rule);
     }
 
+    // add producer to the list of expected producers
     public void AddProducer(SGProducer producer)
     {
         producers.Add(producer.token, producer);
     }
 
+    // check if name exists in any context
     public bool NameExsists(string token)
     {
         return producers.ContainsKey(token) || generators.ContainsKey(token) || 
@@ -91,6 +100,7 @@ public class ShapeGrammarParser
             sgTypes.ContainsKey(token);
     }
 
+    // enum of all symbols to expect in the grammar
     private enum ELang
     {
         // production rules
@@ -103,6 +113,7 @@ public class ShapeGrammarParser
 
     public void CompileParser()
     {
+        // list of regular expressions matching tokens
         var tokens = new LexerDefinition<ELang>(new Dictionary<ELang, TokenRegex>
         {
             [ELang.Ignore] = "[\\s\\n]+",
@@ -147,6 +158,7 @@ public class ShapeGrammarParser
                 },
                 new Token[] { ELang.ProdRuleList, ELang.ProdRule }
             },
+            // matches a production rule and adds a producer to producers
             [ELang.ProdRule] = new Token[][]
             {
                 new Token[] { ELang.Name, ELang.Colon, ELang.LCBrac, ELang.GenRuleList, ELang.RCBrac,
@@ -173,21 +185,10 @@ public class ShapeGrammarParser
                             p.ruleLists.Add(pair.Item2);
                         }
                         o[0] = p;
-                        //while (genNode != null)
-                        //{
-                        //    try
-                        //    {
-                        //        p.rules.Add((SGRule)genNode.Value);
-                        //        genNode = genNode.Next;
-                        //    }
-                        //    catch (Exception)
-                        //    {
-                        //        throw new Exception("Non-rule found in a rule list");
-                        //    }
-                        //}
                     })
                 },
             },
+            // matches one or more lists of generator rules in a production rule
             [ELang.GenRuleLists] = new Token[][]
             {
                 new Token[] { ELang.LParen, ELang.Number, ELang.RParen, 
@@ -229,7 +230,7 @@ public class ShapeGrammarParser
                     })
                 }
             },
-            // list of parameters
+            // matches any list of expressions separated by commas
             [ELang.ExpList] = new Token[][]
             {
                 new Token[] { ELang.Exp, 
@@ -248,7 +249,7 @@ public class ShapeGrammarParser
                     })
                 }
             },
-            // single parameter
+            // matches numbers, strings, generator rules, or lists
             [ELang.Exp] = new Token[][]
             {
                 new Token[] { ELang.Number, new Op(o => o[0] = Convert.ToDouble(o[0])) },
@@ -272,36 +273,20 @@ public class ShapeGrammarParser
                             throw new AccessViolationException($"name not found: {o[0]}");
                     }) 
                 },
-                //new Token[] { ELang.ProdRule, ELang.LParen, ELang.RParen, 
-                //    new Op(o =>
-                //    {
-                //        // find the producer corresponding to SGProdGen
-                //        string name = o[1];
-                //        Func<SGProducer> findProd = () =>
-                //        {
-                //            if (producers.ContainsKey(name))
-                //                return producers[name];
-                //            else
-                //                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
-                //        };
-                //        o[0] = new SGProdGen(name, findProd);
-                //        o[0] = generators[o[1]].Get<SGRule>();
-                //    })
-                //},
-                //new Token[] { ELang.Name, ELang.Star,
-                //    new Op(o =>
-                //    {
-                //        string name = o[0];
-                //        Func<SGProducer> findProd = () =>
-                //        {
-                //            if (producers.ContainsKey(name))
-                //                return producers[name];
-                //            else
-                //                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
-                //        };
-                //        o[0] = new SGProdGen(name, findProd, depthFirst:true);
-                //    })
-                //},
+                new Token[] { ELang.Name, ELang.Star, ELang.LParen, ELang.RParen,
+                    new Op(o =>
+                    {
+                        string name = o[0];
+                        Func<SGProducer> findProd = () =>
+                        {
+                            if (producers.ContainsKey(name))
+                                return producers[name];
+                            else
+                                throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
+                        };
+                        o[0] = new SGProdGen(name, findProd, depthFirst:true);
+                    })
+                },
                 // function with no parameters
                 new Token[] { ELang.Name, ELang.LParen, ELang.RParen,
                     new Op(o =>
@@ -310,7 +295,6 @@ public class ShapeGrammarParser
                             o[0] = generators[o[0]].Copy();
                         else
                         {
-                            //throw new MethodAccessException($"Function: {o[0]} does not exist");
                             // find the producer corresponding to SGProdGen
                             string name = o[0];
                             Func<SGProducer> findProd = () =>
@@ -321,7 +305,6 @@ public class ShapeGrammarParser
                                     throw new MissingMethodException($"Shape grammar rule: {name} does not exist");
                             };
                             o[0] = new SGProdGen(name, findProd);
-                            //o[0] = generators[o[0]].Get<SGRule>();
                         }
                     })
                 },
@@ -342,18 +325,6 @@ public class ShapeGrammarParser
 
                             expList.CopyTo(g.parameters, 0);
                             o[0] = g;
-
-                           // int i = 0;
-                           // while (expList != null && i < g.parameters.Length)
-                           // {
-                           //     g.parameters[i] = expList.Value;
-                           //     expList = expList.Next;
-                           //     i++;
-                           // }
-                           // // make sure the function has the right number of params
-
-                           //else
-                           //     o[0] = g;
                         }
                         else
                         {
@@ -383,12 +354,13 @@ public class ShapeGrammarParser
                 }
             },
 
-            // variables
+            // matches a list of variables
             [ELang.VarList] = new Token[][]
             {
                 new Token[] { ELang.Var },
                 new Token[] { ELang.VarList, ELang.Var }
             },
+            // matches a single define or var
             [ELang.Var] = new Token[][]
             {
                 new Token[] { ELang.Pound, "\\s*var\\s+", ELang.Name, ELang.Exp,
@@ -414,6 +386,7 @@ public class ShapeGrammarParser
             }
         });
 
+        // add rules and generate the grammar
         var lexer = new Lexer<ELang>(tokens, ELang.Ignore);
         parser = new ParserGenerator<ELang>(lexer, grammarRules).CompileParser();
     }

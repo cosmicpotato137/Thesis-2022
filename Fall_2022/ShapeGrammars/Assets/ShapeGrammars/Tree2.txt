@@ -4,11 +4,11 @@
 
 %%
 
-start: { F* }
+start: { F*() }
 
-F: { R(0, 10, 0) edge* edge* RL* Push() RL* edge* RR* edge* RR* edge* Pop() RR* Push() RR* edge* RL* edge* RL* edge* Pop() }
+F: { R(0, 10, 0) edge*() edge*() RL*() Push() RL*() edge*() RR*() edge*() RR*() edge*() Pop() RR*() Push() RR*() edge*() RL*() edge*() RL*() edge*() Pop() }
 
-edge: { T(0, .5, 0) Push() SS(.5, 1, .5) PlaceShape(Box) Pop() T(0, .5, 0) F* }
+edge: { T(0, .5, 0) Push() SS(.5, 1, .5) PlaceShape("Cube") Pop() T(0, .5, 0) F*() }
 
 RL: { R(-22.5, 0, 0) }
 RR: { R(22.5, 0, 0) }

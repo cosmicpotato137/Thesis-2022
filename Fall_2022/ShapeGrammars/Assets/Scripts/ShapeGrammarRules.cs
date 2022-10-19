@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
-using cosmicpotato.Scope;
 
 // Grammar rule classes
 
+// base class for all shape grammar classes
 public class SGObj
 {
     public string token;
@@ -20,6 +20,7 @@ public class SGObj
     }
 }
 
+// holds shape grammar variable
 public class SGVar : SGObj
 {
     private dynamic value;
@@ -45,12 +46,18 @@ public class SGVar : SGObj
     }
 }
 
+// holds definition for a shape grammar production rule
 public class SGProducer : SGObj
 {
+    // list of one or more sets of rules to follow
     public List<LinkedList<SGRule>> ruleLists;
+
+    // non-normalized probability that a rule gets chosen
     public List<float> p;
 
+    // reference to the external queue of operations
     public static LinkedList<SGRule> opQueue;
+    // random number generator
     public static System.Random rg = new System.Random(1234);
     
 
@@ -68,10 +75,12 @@ public class SGProducer : SGObj
 
     public void PushChildren(SGProdGen prodGen)
     {
+        // get the index of the set of rules to call
         int idx = 0;
         if (p.Count > 0)
         {
             // normalize probabilities
+            // todo: maybe optimize this?
             List<float> ps = new List<float>();
             float mag = 0;
             foreach (float f in p)
@@ -83,17 +92,19 @@ public class SGProducer : SGObj
                 tot += p[i] / mag;
             }
 
+            // get index based on a random number
             float rand = (float)rg.NextDouble();
             while (ps[idx] < rand)
-            {
                 idx++;
-            }
             if (idx == ps.Count)
                 idx--;
         }
 
+        // get the set of rules
         var rules = ruleLists[idx];
-        // for shape elements that must be evaluated first
+
+        // evaluate depth first
+        // todo: add add multiple queues for handling priority
         if (prodGen.depthFirst)
         {
             LinkedListNode<SGRule> n = rules.Last;
@@ -106,6 +117,7 @@ public class SGProducer : SGObj
                 n = n.Previous;
             }
         }
+        // evaluate breadth first
         else
         {
             foreach (SGRule rule in rules)
@@ -118,9 +130,10 @@ public class SGProducer : SGObj
     }
 }
 
+// base class for all 'called' items in production rules
 public class SGRule : SGObj
 {
-    public SGProdGen parent; // parent rule in production
+    public SGProdGen parent;
     public static int maxDepth;
     public int depth;
 
@@ -145,16 +158,22 @@ public class SGRule : SGObj
     }
 }
 
+// inline call to a production rule
 public class SGProdGen : SGRule
 {
+    // function find the producer at runtime
     public Func<SGProducer> callback;
+    // producer to call
     private SGProducer prod;
-    public bool depthFirst { get; private set; }
 
+    // set producer to depth first or breadth first
+    public bool depthFirst { get; private set; }
+    // start with the parent's scope?
     public bool adoptParentScope;
-    public Matrix4x4 scope;
-    private LinkedList<Matrix4x4> scopeStack;
-    public GameObject gameObject;
+    
+    public Matrix4x4 scope;                     // current scope
+    private LinkedList<Matrix4x4> scopeStack;   // scope history
+    public List<GameObject> gameObjects;        // instantiated GameObjects
 
     public SGProdGen(string token, Func<SGProducer> callback, bool adoptParentScope=true, bool depthFirst=false) : base(token)
     {
@@ -162,6 +181,7 @@ public class SGProdGen : SGRule
         this.callback = callback;
         this.depthFirst = depthFirst;
         this.adoptParentScope = adoptParentScope;
+        this.gameObjects = new List<GameObject>();
     }
 
     public SGProdGen(SGProdGen other) : base(other)
@@ -169,7 +189,7 @@ public class SGProdGen : SGRule
         this.callback = other.callback;
         this.scope = other.scope;
         this.scopeStack = other.scopeStack;
-        this.gameObject = other.gameObject;
+        this.gameObjects = other.gameObjects;
         this.depthFirst = other.depthFirst;
         this.depth = other.depth;
     }
@@ -179,7 +199,7 @@ public class SGProdGen : SGRule
         var pg = new SGProdGen(this.token, this.callback);
         pg.scope = scope;
         pg.scopeStack = scopeStack;
-        pg.gameObject = gameObject;
+        pg.gameObjects = gameObjects;
         pg.parent = parent;
         pg.depth = depth;
         pg.depthFirst = depthFirst;
@@ -189,21 +209,26 @@ public class SGProdGen : SGRule
 
     public override void Call()
     {
+        // end if max depth has been reached
         if (depth > maxDepth)
             return;
+
+        // find producer if not memoized
         if (prod == null)
             prod = callback();
 
+        // get parent and update scope
         if (parent != null && adoptParentScope)
         {
             this.scope = parent.scope;
-            this.gameObject = parent.gameObject;
+            this.gameObjects = parent.gameObjects;
         }
 
         // pass scope and gameobject down the tree
         prod.PushChildren(this);
     }
 
+    // save and load transforms to and from the stack
     public void SaveTransform()
     {
         scopeStack.AddLast(scope);
@@ -222,8 +247,12 @@ public class SGProdGen : SGRule
 
 }
 
+// all rules that don't directly reference producers
+// used for placing geometry and manipulating scopes
+// subclasses for different numbers of parameters
 public class SGGeneratorBase : SGRule
 {
+    // parameters for the callback to be used at runtime
     public dynamic[] parameters;
 
     public SGGeneratorBase(string token) : base(token)
@@ -238,6 +267,7 @@ public class SGGeneratorBase : SGRule
 
 public class SGGenerator : SGGeneratorBase
 {
+    // callback to be used at runtime
     private Action<SGProdGen> callback;
 
     public SGGenerator(string token, Action<SGProdGen> callback) : base(token)
@@ -268,6 +298,7 @@ public class SGGenerator : SGGeneratorBase
 
 public class SGGenerator<T1> : SGGeneratorBase
 {
+    // callback to be used at runtime
     private Action<SGProdGen, T1> callback;
 
     public SGGenerator(string token, Action<SGProdGen, T1> callback) : base(token)
@@ -299,6 +330,7 @@ public class SGGenerator<T1> : SGGeneratorBase
 
 public class SGGenerator<T1, T2> : SGGeneratorBase
 {
+    // callback to be used at runtime
     private Action<SGProdGen, T1, T2> callback;
 
     public SGGenerator(string token, Action<SGProdGen, T1, T2> callback) : base(token)
@@ -330,6 +362,7 @@ public class SGGenerator<T1, T2> : SGGeneratorBase
 
 public class SGGenerator<T1, T2, T3> : SGGeneratorBase
 {
+    // callback to be used at runtime
     private Action<SGProdGen, T1, T2, T3> callback;
 
     public SGGenerator(string token, Action<SGProdGen, T1, T2, T3> callback) : base(token)

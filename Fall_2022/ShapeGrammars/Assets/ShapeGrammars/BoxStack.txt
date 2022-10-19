@@ -1,8 +1,0 @@
-#define maxDepth 5
-#var floor_height 10
-
-%% 
-
-start: { floor* start }
-
-floor: { Push() SS(20, floor_height, 30) PlaceShape("Box") Pop() T(0, floor_height, 0) S(.9, 1, .9) }

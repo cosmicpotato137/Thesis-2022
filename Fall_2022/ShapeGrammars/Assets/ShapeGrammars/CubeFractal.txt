@@ -4,16 +4,16 @@
 
 %%
 
-start: { cx }
+start: { cx() }
 
-cx: { Subdiv(3, 0, { cy cy1 cy })}
-cy: { Subdiv(3, 1, { cz1 cz cz1 })}
-cy1: { Subdiv(3, 1, { cz null cz })}
-cz: { Subdiv(3, 2, { branch null branch })}
-cz1: { Subdiv(3, 2, { branch branch branch })}
+cx:		{ Subdiv(3, 0, sgprod{ cy(), cy1(), cy() }) }
+cy:		{ Subdiv(3, 1, sgprod{ cz1(), cz(), cz1() }) }
+cy1:	{ Subdiv(3, 1, sgprod{ cz(), null(), cz() }) }
+cz:		{ Subdiv(3, 2, sgprod{ branch(), null(), branch() }) }
+cz1:	{ Subdiv(3, 2, sgprod{ branch(), branch(), branch() })}
 
-branch: { AtDepth(10, {box}) cx }
+branch: { AtDepth(10, sgprod{ box() }) cx() }
 
-box: { PlaceShape("Box") }
+box: { PlaceShape("Cube") }
 
 null: { S(1, 1, 1) }

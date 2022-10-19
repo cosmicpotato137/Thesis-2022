@@ -1,0 +1,35 @@
+#define maxDepth 9
+#var floor_height 10
+
+%% 
+
+s: { S(5, 10, 5) start() }
+
+start: 
+{ 
+	section*() section*() section*() section*() 
+	section*() section*() section*() section*() 
+	spire() 
+}
+
+section: { box() R(0, 45, 0) box() cyls() T(0, 1, 0) S(.8, .7, .8) }
+
+box: { Push() T(0, .5, 0) PlaceShape("Cube") Pop() }
+cyl: { Push() T(0, .5, 0) S(.2, .5, .2) PlaceShape("Cylinder") Pop() }
+cyls: 
+{ 
+	Push() T(.5, 0, .19966) cyl() Pop() 
+	Push() T(.5, 0, -.19966) cyl() Pop() 
+	Push() T(-.5, 0, .19966) cyl() Pop() 
+	Push() T(-.5, 0, -.19966) cyl() Pop() 
+	Push() T(.19966, 0, .5) cyl() Pop() 
+	Push() T(.19966, 0, -.5) cyl() Pop() 
+	Push() T(-.19966, 0, .5) cyl() Pop() 
+	Push() T(-.19966, 0, -.5) cyl() Pop() 
+}
+
+spire: 
+{ 
+	S(.5, .4, .5) T(0, .5, 0) PlaceShape("Cube") 
+	T(0, .5, 0) S(.2, 10, .2) T(0, .5, 0) PlaceShape("Cube") 
+} 
