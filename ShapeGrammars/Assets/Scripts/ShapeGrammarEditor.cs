@@ -1,5 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
+using System;
+using System.IO;
 using UnityEngine;
 using UnityEditor;
 
@@ -9,10 +11,28 @@ using UnityEditor;
 public class ShapeGrammarDriverEditor : Editor
 {
     ShapeGrammarDriver sgd;
+    FileSystemWatcher watcher;
+    bool changed = false;
 
     private void OnEnable()
     {
         sgd = target as ShapeGrammarDriver;
+
+        watcher = new FileSystemWatcher(@"C:\NerdThings\thesis\ShapeGrammars\Assets");
+        watcher.NotifyFilter = NotifyFilters.Attributes
+                     | NotifyFilters.CreationTime
+                     | NotifyFilters.DirectoryName
+                     | NotifyFilters.FileName
+                     | NotifyFilters.LastAccess
+                     | NotifyFilters.LastWrite
+                     | NotifyFilters.Security
+                     | NotifyFilters.Size;
+
+        watcher.Changed += OnChanged;
+
+        watcher.Filter = "*.txt";
+        watcher.IncludeSubdirectories = true;
+        watcher.EnableRaisingEvents = true;
     }
 
     public override void OnInspectorGUI()
@@ -24,7 +44,20 @@ public class ShapeGrammarDriverEditor : Editor
             sgd.GenerateMesh();
         if (GUILayout.Button("Clear Mesh"))
             sgd.ClearMesh();
-        if (GUILayout.Button("Parse Grammar"))
+        if (GUILayout.Button("Parse Grammar") || changed)
+        {
             sgd.ParseGrammar();
+            changed = false;
+        }
+
+    }
+
+    private void OnChanged(object sender, FileSystemEventArgs e)
+    {
+        if (e.ChangeType != WatcherChangeTypes.Changed)
+        {
+            return;
+        }
+        changed = true;
     }
 }

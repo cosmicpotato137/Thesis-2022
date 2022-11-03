@@ -16,4 +16,4 @@ branch:
 	S(1, 1, 1)
 }
 
-edge: { Push() T(0, 1, 0) SS(.2, 2, .2) PlaceShape("Box") Pop() }
+edge: { Push() T(0, 1, 0) SS(.2, 2, .2) PlaceShape("Cube") Pop() }

@@ -37,30 +37,34 @@ public class ShapeGrammarDriver : MonoBehaviour
 
         // translate
         Action<SGProdGen, float, float, float> t =
-            (parent, x, y, z) => parent.scope = parent.scope.Translate(new Vector3(x, y, z));
+            (parent, x, y, z) => parent.scope.Translate(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("T", t));
 
         // translate local
         Action<SGProdGen, float, float, float> tl = (parent, x, y, z) =>
         {
-            Vector3 v = Vector3.Scale(new Vector3(x, y, z), parent.scope.GetScale());
-            parent.scope = parent.scope.Translate(v);
+            Vector3 v = Vector3.Scale(new Vector3(x, y, z), parent.scope.scale);
+            parent.scope.Translate(v);
         };
         parser.AddGenerator(new SGGenerator<float, float, float>("TL", tl));
 
         // rotate
-        Action<SGProdGen, float, float, float> r =
-            (parent, x, y, z) => parent.scope = parent.scope.Rotate(new Vector3(x, y, z));
+        Action<SGProdGen, float, float, float> r = (parent, x, y, z) => 
+        { 
+                parent.scope.Rotate(new Vector3(x, y, z)); 
+        };
         parser.AddGenerator(new SGGenerator<float, float, float>("R", r));
 
         // scale
         Action<SGProdGen, float, float, float> s =
-            (parent, x, y, z) => parent.scope = parent.scope.Scale(new Vector3(x, y, z));
+            (parent, x, y, z) => { 
+                parent.scope.Scale(new Vector3(x, y, z)); 
+            };
         parser.AddGenerator(new SGGenerator<float, float, float>("S", s));
 
         // set scale
         Action<SGProdGen, float, float, float> ss =
-            (parent, x, y, z) => parent.scope = parent.scope.SetScale(new Vector3(x, y, z));
+            (parent, x, y, z) => parent.scope.SetScale(new Vector3(x, y, z));
         parser.AddGenerator(new SGGenerator<float, float, float>("SS", s));
 
         // matrix stack ops
@@ -72,7 +76,7 @@ public class ShapeGrammarDriver : MonoBehaviour
         // subdivide scope
         Action<SGProdGen, int, Axis, SGRule[]> subdiv = (parent, divs, axis, rules) =>
         {
-            Matrix4x4[] scopes = parent.scope.SubdivideScope(divs, axis);
+            Scope[] scopes = parent.scope.Subdivide(divs, axis);
             for (int i = 0; i < scopes.Length && i < rules.Length; i++)
             {
                 if (rules[i].GetType() != typeof(SGProdGen))
@@ -151,6 +155,8 @@ public class ShapeGrammarDriver : MonoBehaviour
             }
         };
         //parser.AddGenerator(new SGGenerator<SGProdGen>("DecFaces", getFaces));
+
+        parser.Parse(textFile);
     }
 
     // run the parser on a shape grammar file
@@ -191,7 +197,7 @@ public class ShapeGrammarDriver : MonoBehaviour
     }
 
     // place a shape at the current scope
-    public GameObject PlaceShape(string str, Matrix4x4 scope)
+    public GameObject PlaceShape(string str, Scope scope)
     {
         if (!shapeDict.ContainsKey(str))
         {
@@ -200,7 +206,12 @@ public class ShapeGrammarDriver : MonoBehaviour
         }
 
         GameObject g = Instantiate(shapeDict[str], transform);
-        g.transform.FromMatrix(scope);
+        //Matrix4x4 m = Matrix4x4.TRS(transform.localPosition, transform.localRotation, transform.localScale);
+        var s = new Scope(scope);
+        s.Translate(g.transform.localPosition);
+        s.Rotate(g.transform.localRotation);
+        s.Scale(g.transform.localScale);
+        g.transform.FromScope(s);
 
         objects.AddLast(g);
         return g;

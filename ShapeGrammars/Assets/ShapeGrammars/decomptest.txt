@@ -1,0 +1,19 @@
+#define maxDepth 100
+#define maxOper 500000
+
+%%
+
+start: { PlaceShape("Cylinder") DecFaces() }
+
+
+
+start_: { snk*() start() }
+
+snk: 
+(1){ box*() box*() box*() }
+(1){ box*() box() R(90, 0, 0) T(0, 0, 1) box*() }
+(10){ box*() box() R(-90, 0, 0) T(0, 0, 1) box*() }
+(1){ box*() box() R(0, 90, 0) T(0, 0, 1) box*() }
+(1){ box*() box() R(0, -90, 0) T(0, 0, 1) box*() }
+
+box: { PlaceShape("Cube") T(0, 0, 1) }

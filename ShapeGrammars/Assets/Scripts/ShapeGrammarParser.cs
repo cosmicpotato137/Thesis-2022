@@ -1,4 +1,5 @@
-﻿using CSharpParserGenerator; // todo: make a separate plugin out of this
+﻿using cosmicpotato.Scope;
+using CSharpParserGenerator; // todo: make a separate plugin out of this
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -47,7 +48,6 @@ public class ShapeGrammarParser
     {
         producers.Clear();
         variables.Clear();
-        opQueue.Clear();
 
         prepVars["seed"].Set(-1);
         prepVars["maxOper"].Set(-1);
@@ -58,7 +58,9 @@ public class ShapeGrammarParser
 
     // run the currently parsed shape grammar
     public void RunShapeGrammar(int maxDepth, int maxOper = 100000)
-    {
+    { 
+        opQueue.Clear();
+
         if (prepVars.ContainsKey("maxDepth") && prepVars["maxDepth"].Get<int>() > 0)
             maxDepth = prepVars["maxDepth"].Get<int>();
         if (prepVars.ContainsKey("maxOper") && prepVars["maxOper"].Get<int>() > 0)
@@ -69,6 +71,7 @@ public class ShapeGrammarParser
         SGProducer.rg = new System.Random();
 
         SGRule.maxDepth = maxDepth;
+        opTree.scope = Scope.identity.Copy();
         opQueue.AddLast(opTree);
 
         int i = 0;
@@ -118,8 +121,8 @@ public class ShapeGrammarParser
         {
             [ELang.Ignore] = "[\\s\\n]+",
             [ELang.Name] = @"[A-Za-z_][a-zA-Z0-9_]*",
-            [ELang.String] = "\"[A-Za-z_][a-zA-Z0-9_]*\"",// (?:[^\"\\]|\\.)*
-            [ELang.LParen] = "\\(",
+            [ELang.String] = "\"[^\"]*\"", // todo: fix this
+            [ELang.LParen] = "\\(", 
             [ELang.RParen] = "\\)",
             [ELang.Number] = "[-+]?\\d*(\\.\\d+)?",
             [ELang.RArrow] = @"->",
@@ -152,7 +155,7 @@ public class ShapeGrammarParser
                         SGProducer p = o[0];
                         SGProdGen pg = new SGProdGen("__BEGIN__", () => p);
                         opTree = pg;
-                        opTree.scope = Matrix4x4.identity;
+                        opTree.scope = Scope.identity.Copy();
                         opTree.depth = 0;
                     })
                 },

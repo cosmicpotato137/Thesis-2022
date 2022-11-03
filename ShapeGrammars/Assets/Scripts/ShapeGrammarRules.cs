@@ -1,4 +1,5 @@
-﻿using System;
+﻿using cosmicpotato.Scope;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -171,13 +172,13 @@ public class SGProdGen : SGRule
     // start with the parent's scope?
     public bool adoptParentScope;
     
-    public Matrix4x4 scope;                     // current scope
-    private LinkedList<Matrix4x4> scopeStack;   // scope history
+    public Scope scope;                     // current scope
+    private LinkedList<Scope> scopeStack;   // scope history
     public List<GameObject> gameObjects;        // instantiated GameObjects
 
     public SGProdGen(string token, Func<SGProducer> callback, bool adoptParentScope=true, bool depthFirst=false) : base(token)
     {
-        scopeStack = new LinkedList<Matrix4x4>();
+        scopeStack = new LinkedList<Scope>();
         this.callback = callback;
         this.depthFirst = depthFirst;
         this.adoptParentScope = adoptParentScope;
@@ -187,7 +188,7 @@ public class SGProdGen : SGRule
     public SGProdGen(SGProdGen other) : base(other)
     {
         this.callback = other.callback;
-        this.scope = other.scope;
+        this.scope = other.scope.Copy();
         this.scopeStack = other.scopeStack;
         this.gameObjects = other.gameObjects;
         this.depthFirst = other.depthFirst;
@@ -197,7 +198,8 @@ public class SGProdGen : SGRule
     public override SGRule Copy()
     {
         var pg = new SGProdGen(this.token, this.callback);
-        pg.scope = scope;
+        if (scope != null)
+            pg.scope = scope.Copy();
         pg.scopeStack = scopeStack;
         pg.gameObjects = gameObjects;
         pg.parent = parent;
@@ -220,7 +222,7 @@ public class SGProdGen : SGRule
         // get parent and update scope
         if (parent != null && adoptParentScope)
         {
-            this.scope = parent.scope;
+            this.scope = parent.scope.Copy();
             this.gameObjects = parent.gameObjects;
         }
 
@@ -231,7 +233,7 @@ public class SGProdGen : SGRule
     // save and load transforms to and from the stack
     public void SaveTransform()
     {
-        scopeStack.AddLast(scope);
+        scopeStack.AddLast(scope.Copy());
     }
 
     public void LoadTransform()
@@ -241,7 +243,7 @@ public class SGProdGen : SGRule
             Debug.LogWarning("Trying to pop from empty stack");
             return;
         }
-        scope = scopeStack.Last.Value;
+        scope = scopeStack.Last.Value.Copy();
         scopeStack.RemoveLast();
     }
 
