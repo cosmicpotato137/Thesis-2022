@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using cosmicpotato.Scope;
-using Parabox.CSG;
+//using Parabox.CSG;
 
 [ExecuteInEditMode]
 public class ShapeGrammarDriver : MonoBehaviour
@@ -189,10 +189,17 @@ public class ShapeGrammarDriver : MonoBehaviour
     // clear all generated meshes
     public void ClearMesh()
     {
+        // destroy all objects in the tree and the hierarchy
         while (objects.Count > 0)
         {
             DestroyImmediate(objects.First.Value);
             objects.RemoveFirst();
+        }
+
+        // destroy any leftover objects in the hierarchy
+        while (transform.childCount > 0)
+        {
+            DestroyImmediate(transform.GetChild(0).gameObject);
         }
     }
 

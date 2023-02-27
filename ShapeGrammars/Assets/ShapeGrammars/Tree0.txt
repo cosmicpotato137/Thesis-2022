@@ -1,6 +1,6 @@
 #define maxDepth 9
 #define maxOper 100000
-#define seed 1234
+#define seed 12345
 
 %%
 

@@ -18,7 +18,7 @@ public class ShapeGrammarDriverEditor : Editor
     {
         sgd = target as ShapeGrammarDriver;
 
-        watcher = new FileSystemWatcher(@"C:\NerdThings\thesis\ShapeGrammars\Assets");
+        watcher = new FileSystemWatcher(Application.dataPath);
         watcher.NotifyFilter = NotifyFilters.Attributes
                      | NotifyFilters.CreationTime
                      | NotifyFilters.DirectoryName
@@ -37,7 +37,9 @@ public class ShapeGrammarDriverEditor : Editor
 
     public override void OnInspectorGUI()
     {
+        EditorGUI.BeginChangeCheck();
         base.OnInspectorGUI();
+        changed = EditorGUI.EndChangeCheck() || changed;
 
         // UI buttons for calling driver methods
         if (GUILayout.Button("Generate Mesh"))
@@ -49,7 +51,6 @@ public class ShapeGrammarDriverEditor : Editor
             sgd.ParseGrammar();
             changed = false;
         }
-
     }
 
     private void OnChanged(object sender, FileSystemEventArgs e)
